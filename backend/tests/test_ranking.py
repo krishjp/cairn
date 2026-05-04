@@ -26,7 +26,7 @@ def test_record_comparison(session: Session):
     r2 = CanonicalRoute(
         name="Trail 2", geometry="LINESTRING(2 2, 3 3)", rating_score=1000.0
     )
-    user = User(display_name="Voter", strava_id=777)
+    user = User(display_name="Voter")
     session.add(r1)
     session.add(r2)
     session.add(user)

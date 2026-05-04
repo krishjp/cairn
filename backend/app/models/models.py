@@ -19,19 +19,15 @@ class UserRouteRating(SQLModel, table=True):
 class User(SQLModel, table=True):
     __tablename__ = "users"
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
-    strava_id: Optional[int] = Field(
-        default=None, sa_column=Column(BigInteger, unique=True, nullable=True)
-    )
     display_name: Optional[str] = Field(
         default=None, sa_column=Column(Text, nullable=True)
     )
     is_private: bool = Field(default=False)
 
-    # OAuth tokens
-    access_token: Optional[str] = None
-    refresh_token: Optional[str] = None
-    token_expires_at: Optional[int] = None
-
+    # Relationships
+    strava_account: Optional["StravaAccount"] = Relationship(
+        back_populates="user", sa_relationship_kwargs={"uselist": False}
+    )
     activities: List["Activity"] = Relationship(back_populates="user")
     comparisons: List["Comparison"] = Relationship(back_populates="user")
     route_ratings: List["UserRouteRating"] = Relationship(back_populates="user")
@@ -55,6 +51,19 @@ class User(SQLModel, table=True):
             "secondaryjoin": "User.id == Follow.follower_id",
         },
     )
+
+
+class StravaAccount(SQLModel, table=True):
+    __tablename__ = "strava_accounts"
+    strava_id: int = Field(unique=True, index=True, primary_key=True)
+    user_id: uuid.UUID = Field(foreign_key="users.id", unique=True)
+
+    access_token: Optional[str] = None
+    refresh_token: Optional[str] = None
+    expires_at: Optional[int] = None
+
+    # Relationship
+    user: User = Relationship(back_populates="strava_account")
 
 
 class Follow(SQLModel, table=True):

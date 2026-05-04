@@ -10,8 +10,8 @@
 - **Tunnels:** Dockerized ngrok for local webhook/OAuth testing
 - **Integration:** Strava API (OAuth2 + Webhooks)
 
-## 3. Current Status (End of Phase 3)
-Phase 3 (Ranking Engine) is **Complete and Verified**.
+## 3. Current Status (End of Phase 4 Backend)
+Phase 4 (Manual Promotion Logic) is **Complete and Verified**.
 
 ### Completed Tasks:
 - [x] **Docker Stack**: `db`, `backend`, and `ngrok` services are configured and talking to each other.
@@ -22,6 +22,7 @@ Phase 3 (Ranking Engine) is **Complete and Verified**.
 - [x] **OSM Seeding**: CLI tool to seed routes for SF and National Parks.
 - [x] **Map Matching**: 80% overlap threshold logic using Shapely.
 - [x] **Ranking Engine**: User-specific and Global Elo ratings (Bradley-Terry).
+- [x] **Trail Promotion**: Logic to clean (trim + simplify) and promote activities to Canonical Routes.
 
 ### Verified State:
 - `docker-compose up` runs successfully.
@@ -34,9 +35,10 @@ Phase 3 (Ranking Engine) is **Complete and Verified**.
 - `backend/app/models/models.py`: Defines the PostGIS-enabled SQLModel schema.
 
 ## 5. Next Steps (Phase 4: Frontend)
-1. **React Native UI**: Implement the "Pairwise Vote" swipe interface and Leaderboard screens.
+1. **React Native UI**: Implement the "Pairwise Vote" swipe interface, Leaderboard screens, and the "Promote Trail" UI.
 2. **Media Ingestion**: Implement pulling activity photos from Strava API.
-3. **Friend Rankings**: Implement social layer to filter rankings by friends.
+3. **Social Features**: Add comments and reactions to friend rankings.
+4. **Hikebox Support (Planning)**: Design ingestion pipeline for standalone ESP32 hardware uploads.
 
 ---
 *Generated on 2026-05-03*

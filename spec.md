@@ -1,7 +1,7 @@
 # Project "Cairn" (Beli for Hikes) - Technical Specification
 
 ## 1. Project Vision
-A social platform for hikers to connect, track activity via Strava, and rank trails using a pairwise comparison engine (Bradley-Terry model). The system must bridge the gap between variable GPS tracks and static "Canonical Routes" to create a definitive leaderboard of trails within a social circle.
+A social platform for hikers to connect, track activity via Strava or custom hardware, and rank trails using a pairwise comparison engine (Bradley-Terry model). The system must bridge the gap between variable GPS tracks and static "Canonical Routes" to create a definitive leaderboard of trails within a social circle.
 
 ## 2. Technical Stack
 - **Frontend:** React Native (Expo) for cross-platform mobile access and Bluetooth/Map integration.
@@ -35,6 +35,7 @@ Unlike restaurants, hikes are lines, not points.
 - **Fetcher:** Request full `stream` data (lat/lng, time, altitude, heart_rate).
 - **Processor:** Decode Google Polylines into PostGIS LineStrings.
 - **Media Ingestion (Future):** Pull activity photos via the Strava API and associate them with the `Activity` record.
+- **Hikebox Integration (Future):** Support for manual polyline uploads from custom ESP32 "hikebox" hardware. Data will be normalized to the internal "Activity" format to bypass Strava dependency for non-Strava users.
 
 ## 4. Database Schema (Draft)
 ```sql
@@ -87,5 +88,6 @@ CREATE TABLE comparisons (
 - [ ] Build "Leaderboard" view showing Global vs. Friend rankings.
 
 ### Phase 4: "Add a Hike" Feature
-- [ ] Build UI for users to name and "Promote" an unidentified GPS track to a Canonical Route.
-- [ ] Implement geometry cleaning (trimming start/end of tracks to isolate the trail).
+- [x] Build backend logic for users to "Promote" an unidentified GPS track to a Canonical Route.
+- [x] Implement geometry cleaning (trimming start/end of tracks to isolate the trail).
+- [ ] Build UI for users to name and trigger promotion from the mobile app.

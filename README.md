@@ -1,4 +1,4 @@
-# Cairn: The Pairwise Trail Ranking Platform
+# Cairn: Trail Rankings
 
 Cairn is a social platform for hikers to track Strava activities and rank trails using a pairwise comparison engine (Bradley-Terry model). It bridges the gap between variable GPS tracks and static "Canonical Routes" to create definitive leaderboards within social circles.
 
@@ -15,22 +15,42 @@ Cairn is a social platform for hikers to track Strava activities and rank trails
 
 ```mermaid
 graph TD
-    A[Strava Webhook] --> B[FastAPI Backend]
+    subgraph Ingestion
+        A1[Strava Webhook]
+        A2[Hikebox Upload]
+    end
+
+    A1 --> B[FastAPI Backend]
+    A2 --> B
+    
     B --> C[Overpass API]
-    C --> D[(PostgreSQL/PostGIS)]
-    B --> D
+    B --> D[(PostgreSQL/PostGIS)]
+    C --> D
+    
     E[User Vote] --> B
     B --> F[Ranking Engine]
     F --> D
+    
+    D --> G[Leaderboards]
+    subgraph Tiers
+        G1[Personal]
+        G2[Friends]
+        G3[Global]
+    end
+    G --> G1
+    G --> G2
+    G --> G3
 ```
 
 ## Core Modules
 
 ### 1. Ingestion & Geometry Matching
-Cairn automatically identifies which trail a user hiked by comparing their raw Strava GPS stream against "Canonical Routes" seeded from OpenStreetMap.
+Cairn automatically identifies which trail a user hiked by comparing their raw GPS stream against "Canonical Routes" seeded from OpenStreetMap.
 
+*   **Multi-Source Ingestion:** Supports activities from Strava (Webhooks) and custom ESP32 "Hikebox" hardware (Manual Upload).
 *   **OSM Seeding:** Uses the Overpass API to fetch `route=hiking` relations and ways.
 *   **Matching Logic:** Implemented using `Shapely`. The system buffers canonical routes by ~20 meters and calculates the intersection with the user's activity. A match is confirmed if the overlap exceeds 80%.
+*   **Trail Promotion:** For activities with <80% match, users can "promote" their track to a new Canonical Route. The system automatically cleans the track by trimming trailhead noise (default 50m) and simplifying the geometry.
 
 ### 2. Ranking Engine
 Trails are ranked using a Bradley-Terry model implemented via an Elo-based update system. Every vote updates two distinct streams:

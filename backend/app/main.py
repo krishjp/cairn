@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from app.api.v1.endpoints import strava, admin, ranking, users
+from app.api.v1.endpoints import strava, admin, ranking, users, routes
 from app.core.config import settings
 
 app = FastAPI(title=settings.PROJECT_NAME)
@@ -18,3 +18,6 @@ app.include_router(
     ranking.router, prefix=f"{settings.API_V1_STR}/ranking", tags=["ranking"]
 )
 app.include_router(users.router, prefix=f"{settings.API_V1_STR}/users", tags=["users"])
+app.include_router(
+    routes.router, prefix=f"{settings.API_V1_STR}/routes", tags=["routes"]
+)

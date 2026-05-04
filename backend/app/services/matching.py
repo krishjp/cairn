@@ -7,32 +7,36 @@ from sqlalchemy import func
 from app.models.models import Activity, CanonicalRoute
 from app.core.db import engine
 
-logger = logging.getLogger(__name__)
+from app.core.config import settings
+from app.services.geometry import project_to_metric, transform
 
-# Approx 20 meters in degrees at the equator
-DEFAULT_BUFFER_DEGREES = 0.0002
+logger = logging.getLogger(__name__)
 
 
 def calculate_overlap(
     activity_shape: LineString,
     route_shape: LineString,
-    buffer_deg: float = DEFAULT_BUFFER_DEGREES,
+    buffer_m: float = settings.MATCH_BUFFER_METERS,
 ) -> float:
     """
     Calculates the percentage of the activity that overlaps with the route.
+    Uses metric projection for accurate buffer calculation.
     """
-    if activity_shape.length == 0:
+    # 1. Project both to metric CRS
+    metric_activity = transform(project_to_metric, activity_shape)
+    metric_route = transform(project_to_metric, route_shape)
+
+    if metric_activity.length == 0:
         return 0.0
 
-    # Buffer the route to account for GPS jitter
-    buffered_route = route_shape.buffer(buffer_deg)
+    # 2. Buffer the route to account for GPS jitter
+    buffered_route = metric_route.buffer(buffer_m)
 
-    # Find the intersection of the activity and the buffered route
-    intersection = activity_shape.intersection(buffered_route)
+    # 3. Find the intersection
+    intersection = metric_activity.intersection(buffered_route)
 
-    # Overlap is the ratio of the length of the intersection to the total length
-    overlap_ratio = intersection.length / activity_shape.length
-    return min(overlap_ratio, 1.0)
+    # 4. Overlap is the ratio of metric lengths
+    return min(intersection.length / metric_activity.length, 1.0)
 
 
 def match_activity_to_route(
@@ -60,9 +64,13 @@ def _match_activity_to_route_with_session(
     # Convert activity geometry to Shapely
     activity_shape = to_shape(activity.raw_polyline)
 
-    # find candidate routes using a spatial filter
+    # Find candidate routes using a spatial filter (casting to geography for meters)
     candidates_statement = select(CanonicalRoute).where(
-        func.ST_DWithin(CanonicalRoute.geometry, activity.raw_polyline, 0.005)  # ~500m
+        func.ST_DWithin(
+            func.ST_Transform(CanonicalRoute.geometry, 3857),
+            func.ST_Transform(activity.raw_polyline, 3857),
+            settings.MATCH_SEARCH_RADIUS_METERS,
+        )
     )
     candidates = session.exec(candidates_statement).all()
 
@@ -78,7 +86,7 @@ def _match_activity_to_route_with_session(
             best_match_id = route.id
 
     # Threshold for a valid match
-    if best_match_id and max_overlap > 0.8:
+    if best_match_id and max_overlap > settings.MATCH_OVERLAP_THRESHOLD:
         activity.canonical_route_id = best_match_id
         activity.match_confidence = max_overlap
         session.add(activity)

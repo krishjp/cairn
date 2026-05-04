@@ -16,6 +16,16 @@ class Settings(BaseSettings):
     STRAVA_WEBHOOK_VERIFY_TOKEN: Optional[str] = None
     STRAVA_REDIRECT_URI: str = "http://localhost:8000/api/v1/strava/callback"
 
+    # Matching Constants
+    MATCH_OVERLAP_THRESHOLD: float = 0.8
+    MATCH_BUFFER_METERS: float = 20.0
+    MATCH_SEARCH_RADIUS_METERS: float = 500.0
+
+    # Ranking Constants
+    # K-factor determines how much the rating changes after each comparison
+    DEFAULT_ELO_K_FACTOR: int = 32
+    INITIAL_ELO_RATING: float = 1000.0
+
     model_config = SettingsConfigDict(env_file=".env", case_sensitive=True)
 
 

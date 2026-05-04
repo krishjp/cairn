@@ -35,9 +35,7 @@ def get_personal_leaderboard(
     results = session.exec(statement).all()
 
     # Flatten the result to return route data with the personal score
-    return [
-        {**route.model_dump(), "personal_score": score} for route, score in results
-    ]
+    return [{**route.model_dump(), "personal_score": score} for route, score in results]
 
 
 @router.get("/friends-leaderboard")
@@ -58,7 +56,9 @@ def get_friends_leaderboard(
 
     # Average the UserRouteRating scores for these friends
     statement = (
-        select(CanonicalRoute, func.avg(UserRouteRating.rating_score).label("avg_score"))
+        select(
+            CanonicalRoute, func.avg(UserRouteRating.rating_score).label("avg_score")
+        )
         .join(UserRouteRating)
         .where(UserRouteRating.user_id.in_(friend_ids))
         .group_by(CanonicalRoute.id)

@@ -4,6 +4,7 @@ from typing import List, Dict, Any, Optional
 from app.models.models import CanonicalRoute
 from sqlmodel import Session, select
 from app.core.db import engine
+from app.core.constants import DEFAULT_SEED_BBOX
 
 logger = logging.getLogger(__name__)
 
@@ -62,7 +63,7 @@ def osm_element_to_wkt(element: Dict[str, Any]) -> Optional[str]:
     return None
 
 
-def seed_canonical_routes(bbox: str = "37.70,-122.55,37.85,-122.35"):
+def seed_canonical_routes(bbox: str = DEFAULT_SEED_BBOX):
     """
     Seeds the canonical_routes table with data from OSM.
     Default bbox is roughly the San Francisco area.

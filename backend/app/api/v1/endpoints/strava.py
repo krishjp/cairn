@@ -5,7 +5,7 @@ from app.core.config import settings
 from app.services import strava as strava_service
 from app.services.strava import get_activity_stream, stream_to_wkt
 from app.services.matching import match_activity_to_route
-from app.models.models import User, Activity
+from app.models.models import User, Activity, StravaAccount
 import logging
 
 router = APIRouter()
@@ -32,21 +32,28 @@ async def callback(code: str, session: Session = Depends(get_session)):
         athlete = token_data.get("athlete", {})
         strava_id = athlete.get("id")
 
-        # Find or create user
-        statement = select(User).where(User.strava_id == strava_id)
-        user = session.exec(statement).first()
+        # Find or create strava account
+        strava_stmt = select(StravaAccount).where(StravaAccount.strava_id == strava_id)
+        strava_acc = session.exec(strava_stmt).first()
 
-        if not user:
+        if not strava_acc:
+            # Create user first
             user = User(
-                strava_id=strava_id,
                 display_name=f"{athlete.get('firstname', '')} {athlete.get('lastname', '')}".strip(),
             )
+            session.add(user)
+            session.flush()
 
-        user.access_token = token_data.get("access_token")
-        user.refresh_token = token_data.get("refresh_token")
-        user.token_expires_at = token_data.get("expires_at")
+            strava_acc = StravaAccount(strava_id=strava_id, user_id=user.id)
+            session.add(strava_acc)
+        else:
+            user = strava_acc.user
 
-        session.add(user)
+        strava_acc.access_token = token_data.get("access_token")
+        strava_acc.refresh_token = token_data.get("refresh_token")
+        strava_acc.expires_at = token_data.get("expires_at")
+
+        session.add(strava_acc)
         session.commit()
 
         return {
@@ -84,14 +91,17 @@ async def webhook_listener(request: Request, session: Session = Depends(get_sess
         strava_athlete_id = data.get("owner_id")
 
         # We should use a background task here, but for now we'll call a service
-        # get user
-        user_stmt = select(User).where(User.strava_id == strava_athlete_id)
-        user = session.exec(user_stmt).first()
+        # get user via strava account
+        strava_stmt = select(StravaAccount).where(
+            StravaAccount.strava_id == strava_athlete_id
+        )
+        strava_acc = session.exec(strava_stmt).first()
 
-        if user and user.access_token:
+        if strava_acc and strava_acc.access_token:
+            user = strava_acc.user
             try:
                 # fetch activity stream
-                stream_data = get_activity_stream(activity_id, user.access_token)
+                stream_data = get_activity_stream(activity_id, strava_acc.access_token)
                 wkt = stream_to_wkt(stream_data)
 
                 if wkt:

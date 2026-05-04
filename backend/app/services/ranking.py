@@ -3,14 +3,15 @@ from typing import Tuple
 from sqlmodel import Session
 from app.models.models import CanonicalRoute, Comparison
 
-logger = logging.getLogger(__name__)
+from app.core.config import settings
 
-# K-factor determines how much the rating changes after each comparison
-DEFAULT_K_FACTOR = 32
+logger = logging.getLogger(__name__)
 
 
 def calculate_elo_update(
-    winner_rating: float, loser_rating: float, k_factor: int = DEFAULT_K_FACTOR
+    winner_rating: float,
+    loser_rating: float,
+    k_factor: int = settings.DEFAULT_ELO_K_FACTOR,
 ) -> Tuple[float, float]:
     """
     Calculate new Elo ratings for a winner and a loser.
@@ -58,13 +59,17 @@ def record_comparison(session: Session, user_id: str, winner_id: int, loser_id: 
     user_winner_rating = session.get(UserRouteRating, (user_id, winner_id))
     if not user_winner_rating:
         user_winner_rating = UserRouteRating(
-            user_id=user_id, canonical_route_id=winner_id, rating_score=1000.0
+            user_id=user_id,
+            canonical_route_id=winner_id,
+            rating_score=settings.INITIAL_ELO_RATING,
         )
 
     user_loser_rating = session.get(UserRouteRating, (user_id, loser_id))
     if not user_loser_rating:
         user_loser_rating = UserRouteRating(
-            user_id=user_id, canonical_route_id=loser_id, rating_score=1000.0
+            user_id=user_id,
+            canonical_route_id=loser_id,
+            rating_score=settings.INITIAL_ELO_RATING,
         )
 
     new_user_w, new_user_l = calculate_elo_update(

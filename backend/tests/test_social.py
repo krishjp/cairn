@@ -4,8 +4,8 @@ from app.services.ranking import record_comparison
 
 
 def test_follow_user(session: Session):
-    u1 = User(display_name="User 1", strava_id=111)
-    u2 = User(display_name="User 2", strava_id=222)
+    u1 = User(display_name="User 1")
+    u2 = User(display_name="User 2")
     session.add(u1)
     session.add(u2)
     session.commit()
@@ -20,8 +20,8 @@ def test_follow_user(session: Session):
 
 
 def test_private_follow_approval(session: Session):
-    u1 = User(display_name="Requester", strava_id=333)
-    u2 = User(display_name="Private User", strava_id=444, is_private=True)
+    u1 = User(display_name="Requester")
+    u2 = User(display_name="Private User", is_private=True)
     session.add(u1)
     session.add(u2)
     session.commit()
@@ -47,8 +47,8 @@ def test_private_follow_approval(session: Session):
 
 def test_friends_leaderboard(session: Session):
     # Setup users and relationships
-    me = User(display_name="Me", strava_id=1)
-    friend = User(display_name="Friend", strava_id=2)
+    me = User(display_name="Me")
+    friend = User(display_name="Friend")
     session.add(me)
     session.add(friend)
     session.commit()
