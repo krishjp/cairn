@@ -84,6 +84,17 @@ docker compose up -d
 docker compose exec backend python -m app.db_init
 ```
 
+### 3. Frontend Setup (Mobile & Web)
+The app is built with Expo and can be run on iOS, Android, or Web.
+
+```bash
+cd frontend
+npm install
+npm run web  # For browser access
+# OR
+npx expo start  # Scan QR code with Expo Go on your phone
+```
+
 ### 3. Seed Trail Data
 Populate the database with trails from specific regions:
 

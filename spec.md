@@ -78,16 +78,20 @@ CREATE TABLE comparisons (
 - [x] Implement Strava OAuth2 flow and Webhook validation.
 - [x] Create utility to convert Strava Polylines to PostGIS LineStrings.
 
-### Phase 2: Geometry Matching
-- [ ] Build script to seed `canonical_routes` from OSM Overpass API.
-- [ ] Implement the Map Matching logic using `Shapely` to determine activity-to-trail overlap.
+### Phase 2: Geometry Matching & Seeding
+- [x] Build script to seed `canonical_routes` from OSM Overpass API.
+- [x] Implement the Map Matching logic using `ST_Transform` (3857) to determine activity-to-trail overlap with metric precision.
+- [x] Centralize Park constants and bounding boxes.
 
 ### Phase 3: The Ranking UI & Logic
-- [ ] Create the Bradley-Terry update function in the backend.
-- [ ] Design React Native "Pairwise Vote" component.
+- [x] Initialized Expo (React Native) project with modern "Dark Forest" theme.
+- [x] Implemented editorial Splash screen and Home Dashboard.
+- [ ] Create the Bradley-Terry/Elo update function in the backend.
+- [ ] Design React Native "Pairwise Vote" swipe component.
 - [ ] Build "Leaderboard" view showing Global vs. Friend rankings.
 
 ### Phase 4: "Add a Hike" Feature
 - [x] Build backend logic for users to "Promote" an unidentified GPS track to a Canonical Route.
-- [x] Implement geometry cleaning (trimming start/end of tracks to isolate the trail).
+- [x] Implement geometry cleaning (high-precision trimming/simplification).
+- [x] Refactor User architecture to decouple from Strava for future "Hikebox" support.
 - [ ] Build UI for users to name and trigger promotion from the mobile app.
