@@ -19,7 +19,7 @@ def test_calculate_elo_update_upset():
 
 
 def test_record_comparison(session: Session):
-    # 1. Setup routes
+    # Setup routes
     r1 = CanonicalRoute(
         name="Trail 1", geometry="LINESTRING(0 0, 1 1)", rating_score=1000.0
     )
@@ -32,16 +32,16 @@ def test_record_comparison(session: Session):
     session.add(user)
     session.commit()
 
-    # 2. Record vote: r1 beats r2
+    # Record vote: r1 beats r2
     record_comparison(session, user.id, r1.id, r2.id)
 
-    # 3. Verify
+    # Verify
     session.refresh(r1)
     session.refresh(r2)
     assert r1.rating_score > 1000
     assert r2.rating_score < 1000
 
-    # 4. Verify personal ratings
+    # Verify personal ratings
     from app.models.models import UserRouteRating
 
     r1_personal = session.get(UserRouteRating, (user.id, r1.id))

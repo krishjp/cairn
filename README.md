@@ -36,6 +36,7 @@ Cairn automatically identifies which trail a user hiked by comparing their raw S
 Trails are ranked using a Bradley-Terry model implemented via an Elo-based update system. Every vote updates two distinct streams:
 
 *   **Personal Ranking:** Private to the user, reflecting their individual preferences.
+*   **Friends Ranking:** Aggregated scores from people the user follows.
 *   **Global Ranking:** A community-wide consensus score stored on the canonical route.
 
 ```mermaid
@@ -43,6 +44,7 @@ flowchart LR
     Vote[User Vote: A > B] --> Global[Update Global Elo]
     Vote --> Personal[Update User Personal Elo]
     Global --> Leaderboard[Global Leaderboard]
+    Personal --> Friends[Friends Leaderboard]
     Personal --> Profile[User Profile Ranking]
 ```
 

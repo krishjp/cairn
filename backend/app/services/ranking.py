@@ -32,7 +32,7 @@ def record_comparison(session: Session, user_id: str, winner_id: int, loser_id: 
     """
     from app.models.models import UserRouteRating
 
-    # 1. Fetch routes
+    # Fetch routes
     winner = session.get(CanonicalRoute, winner_id)
     loser = session.get(CanonicalRoute, loser_id)
 
@@ -40,20 +40,20 @@ def record_comparison(session: Session, user_id: str, winner_id: int, loser_id: 
         logger.error(f"Route not found: {winner_id} or {loser_id}")
         return None
 
-    # 2. Record the comparison
+    # Record the comparison
     comparison = Comparison(
         user_id=user_id, winner_route_id=winner_id, loser_route_id=loser_id
     )
     session.add(comparison)
 
-    # 3. Update Global ratings
+    # Update Global ratings
     new_global_w, new_global_l = calculate_elo_update(
         winner.rating_score, loser.rating_score
     )
     winner.rating_score = new_global_w
     loser.rating_score = new_global_l
 
-    # 4. Update User-specific ratings
+    # Update User-specific ratings
     # Fetch or create user ratings
     user_winner_rating = session.get(UserRouteRating, (user_id, winner_id))
     if not user_winner_rating:

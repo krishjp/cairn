@@ -11,7 +11,7 @@ class UserRouteRating(SQLModel, table=True):
     user_id: uuid.UUID = Field(foreign_key="users.id", primary_key=True)
     canonical_route_id: int = Field(foreign_key="canonical_routes.id", primary_key=True)
     rating_score: float = Field(default=1000.0, sa_column=Column(Float, nullable=False))
-    
+
     user: "User" = Relationship(back_populates="route_ratings")
     canonical_route: "CanonicalRoute" = Relationship(back_populates="user_ratings")
 
@@ -25,6 +25,7 @@ class User(SQLModel, table=True):
     display_name: Optional[str] = Field(
         default=None, sa_column=Column(Text, nullable=True)
     )
+    is_private: bool = Field(default=False)
 
     # OAuth tokens
     access_token: Optional[str] = None
@@ -34,6 +35,34 @@ class User(SQLModel, table=True):
     activities: List["Activity"] = Relationship(back_populates="user")
     comparisons: List["Comparison"] = Relationship(back_populates="user")
     route_ratings: List["UserRouteRating"] = Relationship(back_populates="user")
+
+    # Friends / Following
+    following: List["User"] = Relationship(
+        link_model=None,
+        back_populates="followers",
+        sa_relationship_kwargs={
+            "secondary": "follows",
+            "primaryjoin": "and_(User.id == Follow.follower_id, Follow.status == 'accepted')",
+            "secondaryjoin": "User.id == Follow.followed_id",
+        },
+    )
+    followers: List["User"] = Relationship(
+        link_model=None,
+        back_populates="following",
+        sa_relationship_kwargs={
+            "secondary": "follows",
+            "primaryjoin": "and_(User.id == Follow.followed_id, Follow.status == 'accepted')",
+            "secondaryjoin": "User.id == Follow.follower_id",
+        },
+    )
+
+
+class Follow(SQLModel, table=True):
+    __tablename__ = "follows"
+    follower_id: uuid.UUID = Field(foreign_key="users.id", primary_key=True)
+    followed_id: uuid.UUID = Field(foreign_key="users.id", primary_key=True)
+    status: str = Field(default="accepted")  # "pending" or "accepted"
+    created_at: datetime = Field(default_factory=datetime.utcnow)
 
 
 class CanonicalRoute(SQLModel, table=True):
@@ -52,7 +81,9 @@ class CanonicalRoute(SQLModel, table=True):
     rating_score: float = Field(default=1000.0, sa_column=Column(Float, nullable=False))
 
     activities: List["Activity"] = Relationship(back_populates="canonical_route")
-    user_ratings: List["UserRouteRating"] = Relationship(back_populates="canonical_route")
+    user_ratings: List["UserRouteRating"] = Relationship(
+        back_populates="canonical_route"
+    )
 
 
 class Activity(SQLModel, table=True):

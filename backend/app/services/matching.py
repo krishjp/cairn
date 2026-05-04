@@ -60,7 +60,7 @@ def _match_activity_to_route_with_session(
     # Convert activity geometry to Shapely
     activity_shape = to_shape(activity.raw_polyline)
 
-    # 1. Find candidate routes using a spatial filter
+    # find candidate routes using a spatial filter
     candidates_statement = select(CanonicalRoute).where(
         func.ST_DWithin(CanonicalRoute.geometry, activity.raw_polyline, 0.005)  # ~500m
     )

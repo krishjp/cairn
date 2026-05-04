@@ -29,19 +29,19 @@ def test_calculate_overlap_partial_match():
 
 
 def test_match_activity_to_route(session: Session):
-    # 1. Create a test user
+    # create a test user
     user = User(display_name="Test User", strava_id=999)
     session.add(user)
     session.commit()
 
-    # 2. Create a canonical route
+    # create a canonical route
     route = CanonicalRoute(
         osm_id=123, name="Test Trail", geometry="LINESTRING(0 0, 1 1, 2 2)"
     )
     session.add(route)
     session.commit()
 
-    # 3. Create an activity that matches
+    # create an activity that matches
     activity = Activity(
         user_id=user.id,
         strava_activity_id=456,
@@ -50,10 +50,10 @@ def test_match_activity_to_route(session: Session):
     session.add(activity)
     session.commit()
 
-    # 4. Run matching
+    # run matching
     match_activity_to_route(activity.id, session=session)
 
-    # 5. Verify match
+    # verify match
     session.refresh(activity)
     assert activity.canonical_route_id == route.id
     assert activity.match_confidence > 0.9

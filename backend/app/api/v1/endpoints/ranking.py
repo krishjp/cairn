@@ -40,13 +40,45 @@ def get_personal_leaderboard(
     ]
 
 
+@router.get("/friends-leaderboard")
+def get_friends_leaderboard(
+    user_id: uuid.UUID, limit: int = 20, session: Session = Depends(get_session)
+):
+    """
+    Get the ranking of trails based on the preferences of friends (people the user follows).
+    """
+    from app.models.models import Follow, UserRouteRating
+
+    # Get IDs of people the user follows
+    friends_stmt = select(Follow.followed_id).where(Follow.follower_id == user_id)
+    friend_ids = session.exec(friends_stmt).all()
+
+    if not friend_ids:
+        return []
+
+    # Average the UserRouteRating scores for these friends
+    statement = (
+        select(CanonicalRoute, func.avg(UserRouteRating.rating_score).label("avg_score"))
+        .join(UserRouteRating)
+        .where(UserRouteRating.user_id.in_(friend_ids))
+        .group_by(CanonicalRoute.id)
+        .order_by(func.avg(UserRouteRating.rating_score).desc())
+        .limit(limit)
+    )
+    results = session.exec(statement).all()
+
+    return [
+        {**route.model_dump(), "friends_avg_score": score} for route, score in results
+    ]
+
+
 @router.get("/next-pair")
 def get_next_pair(user_id: uuid.UUID, session: Session = Depends(get_session)):
     """
     Suggests the next two trails for a user to compare.
     Strategy: Pick two distinct trails the user has completed.
     """
-    # 1. Find unique trails the user has activities for
+    # Find unique trails the user has activities for
     subquery = (
         select(Activity.canonical_route_id)
         .where(Activity.user_id == user_id, Activity.canonical_route_id.is_not(None))
