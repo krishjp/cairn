@@ -34,6 +34,7 @@ Unlike restaurants, hikes are lines, not points.
 - **Webhook Listener:** Receive `activity_id` from Strava.
 - **Fetcher:** Request full `stream` data (lat/lng, time, altitude, heart_rate).
 - **Processor:** Decode Google Polylines into PostGIS LineStrings.
+- **Media Ingestion (Future):** Pull activity photos via the Strava API and associate them with the `Activity` record.
 
 ## 4. Database Schema (Draft)
 ```sql
