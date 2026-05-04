@@ -1,12 +1,16 @@
 from fastapi import APIRouter, Depends, Query, Request, HTTPException
-from sqlalchemy.orm import Session
+from sqlmodel import Session, select
 from app.core.db import get_session
 from app.core.config import settings
 from app.services import strava as strava_service
+from app.services.strava import get_activity_stream, stream_to_wkt
+from app.services.matching import match_activity_to_route
+from app.models.models import User, Activity
 import logging
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
 
 @router.get("/authorize")
 def authorize():
@@ -19,37 +23,89 @@ def authorize():
     )
     return {"url": url}
 
+
 @router.get("/callback")
 async def callback(code: str, session: Session = Depends(get_session)):
     """Handle Strava OAuth2 callback."""
     try:
         token_data = strava_service.exchange_code_for_token(code)
-        # TODO: Save user and tokens to database
-        return {"status": "success", "data": token_data}
+        athlete = token_data.get("athlete", {})
+        strava_id = athlete.get("id")
+
+        # Find or create user
+        statement = select(User).where(User.strava_id == strava_id)
+        user = session.exec(statement).first()
+
+        if not user:
+            user = User(
+                strava_id=strava_id,
+                display_name=f"{athlete.get('firstname', '')} {athlete.get('lastname', '')}".strip(),
+            )
+
+        user.access_token = token_data.get("access_token")
+        user.refresh_token = token_data.get("refresh_token")
+        user.token_expires_at = token_data.get("expires_at")
+
+        session.add(user)
+        session.commit()
+
+        return {
+            "status": "success",
+            "message": f"Authorized athlete: {user.display_name}",
+        }
     except Exception as e:
+        logger.error(f"OAuth Error: {e}")
         raise HTTPException(status_code=400, detail=str(e))
+
 
 @router.get("/webhook")
 def verify_webhook(
     hub_mode: str = Query(..., alias="hub.mode"),
     hub_challenge: str = Query(..., alias="hub.challenge"),
-    hub_verify_token: str = Query(..., alias="hub.verify_token")
+    hub_verify_token: str = Query(..., alias="hub.verify_token"),
 ):
     """Verify Strava webhook subscription."""
-    if hub_mode == "subscribe" and hub_verify_token == settings.STRAVA_WEBHOOK_VERIFY_TOKEN:
+    if (
+        hub_mode == "subscribe"
+        and hub_verify_token == settings.STRAVA_WEBHOOK_VERIFY_TOKEN
+    ):
         return {"hub.challenge": hub_challenge}
     raise HTTPException(status_code=403, detail="Verification failed")
+
 
 @router.post("/webhook")
 async def webhook_listener(request: Request, session: Session = Depends(get_session)):
     """Receive Strava webhook events."""
     data = await request.json()
     logger.info(f"Received webhook: {data}")
-    
-    # Example data: {'aspect_type': 'create', 'event_time': 1682851200, 'object_id': 12345678, 'object_type': 'activity', 'owner_id': 99999, 'subscription_id': 111111}
+
     if data.get("object_type") == "activity" and data.get("aspect_type") == "create":
         activity_id = data.get("object_id")
-        strava_id = data.get("owner_id")
-        # TODO: Trigger background task to fetch and process activity
-        
+        strava_athlete_id = data.get("owner_id")
+
+        # We should use a background task here, but for now we'll call a service
+        # get user
+        user_stmt = select(User).where(User.strava_id == strava_athlete_id)
+        user = session.exec(user_stmt).first()
+
+        if user and user.access_token:
+            try:
+                # fetch activity stream
+                stream_data = get_activity_stream(activity_id, user.access_token)
+                wkt = stream_to_wkt(stream_data)
+
+                if wkt:
+                    # save activity
+                    new_activity = Activity(
+                        user_id=user.id,
+                        strava_activity_id=activity_id,
+                        raw_polyline=wkt,
+                    )
+                    session.add(new_activity)
+                    session.commit()
+
+                    # try matching
+                    match_activity_to_route(new_activity.id, session=session)
+            except Exception as e:
+                logger.error(f"Error processing webhook activity: {e}")
     return {"status": "ok"}

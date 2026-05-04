@@ -7,5 +7,6 @@ def init_db():
     SQLModel.metadata.create_all(engine)
     print("Database tables created successfully.")
 
+
 if __name__ == "__main__":
     init_db()
