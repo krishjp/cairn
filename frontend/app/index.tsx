@@ -43,7 +43,7 @@ export default function Home() {
       <Animated.View style={[styles.splashContainer, { opacity: fadeAnim }]}>
         <View style={styles.splashContent}>
           <CairnLogo size={120} color={Colors.primary} />
-          
+
           <View style={styles.definitionContainer}>
             <View style={styles.wordRow}>
               <Text style={styles.word}>cairn</Text>
@@ -69,14 +69,16 @@ export default function Home() {
           start={{ x: 0, y: 0 }}
           end={{ x: 0, y: 1 }}
         >
-          <CairnLogo size={80} color={Colors.primary} />
+          <View style={styles.topLeftLogo}>
+            <CairnLogo size={70} color={Colors.primary} />
+          </View>
           <Text style={styles.heroTitle}>Cairn</Text>
           <Text style={styles.heroSubtitle}>Your social trail companion.</Text>
         </LinearGradient>
 
         {/* Action Button */}
         <View style={styles.actionContainer}>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.stravaButton}
             onPress={() => router.push('/auth/strava')}
           >
@@ -172,9 +174,16 @@ const styles = StyleSheet.create({
   },
   hero: {
     padding: 40,
-    paddingTop: 80,
+    paddingTop: 60,
     alignItems: 'center',
     marginBottom: 20,
+    position: 'relative',
+  },
+  topLeftLogo: {
+    position: 'absolute',
+    top: 30,
+    left: 24,
+    opacity: 0.9,
   },
   heroTitle: {
     fontSize: 52,
