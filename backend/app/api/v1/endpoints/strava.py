@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, Query, Request, HTTPException
+from fastapi.responses import RedirectResponse
 from sqlmodel import Session, select
 from app.core.db import get_session
 from app.core.config import settings
@@ -13,19 +14,21 @@ logger = logging.getLogger(__name__)
 
 
 @router.get("/authorize")
-def authorize():
+def authorize(redirect_uri: str = "cairn-app://auth/strava"):
     """Redirect user to Strava authorize page."""
     scope = "read,activity:read_all"
     url = (
         f"https://www.strava.com/oauth/authorize?client_id={settings.STRAVA_CLIENT_ID}"
         f"&response_type=code&redirect_uri={settings.STRAVA_REDIRECT_URI}"
-        f"&approval_prompt=auto&scope={scope}"
+        f"&approval_prompt=auto&scope={scope}&state={redirect_uri}"
     )
     return {"url": url}
 
 
 @router.get("/callback")
-async def callback(code: str, session: Session = Depends(get_session)):
+async def callback(
+    code: str, state: str = "cairn-app://auth/strava", session: Session = Depends(get_session)
+):
     """Handle Strava OAuth2 callback."""
     try:
         token_data = strava_service.exchange_code_for_token(code)
@@ -56,10 +59,11 @@ async def callback(code: str, session: Session = Depends(get_session)):
         session.add(strava_acc)
         session.commit()
 
-        return {
-            "status": "success",
-            "message": f"Authorized athlete: {user.display_name}",
-        }
+        # Redirect back to the app/web using the provided state as target
+        separator = "&" if "?" in state else "?"
+        return RedirectResponse(
+            url=f"{state}{separator}status=success&name={user.display_name}"
+        )
     except Exception as e:
         logger.error(f"OAuth Error: {e}")
         raise HTTPException(status_code=400, detail=str(e))

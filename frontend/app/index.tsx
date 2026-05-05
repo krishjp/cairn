@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useAuth } from '../context/AuthContext';
 import { StyleSheet, Text, View, TouchableOpacity, ScrollView, Animated, Dimensions } from 'react-native';
-import { useRouter } from 'expo-router';
+import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../constants/Colors';
@@ -11,10 +12,16 @@ import { PoweredByStrava } from '../components/PoweredByStrava';
 const { height } = Dimensions.get('window');
 
 export default function Home() {
-  const router = useRouter();
+  const { user, isLoading } = useAuth();
   const [showSplash, setShowSplash] = useState(true);
   const fadeAnim = useRef(new Animated.Value(1)).current;
   const contentFadeAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (!isLoading && user) {
+      router.replace('/(app)/dashboard');
+    }
+  }, [user, isLoading]);
 
   useEffect(() => {
     // Splash sequence

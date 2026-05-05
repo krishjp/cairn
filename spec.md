@@ -86,6 +86,7 @@ CREATE TABLE comparisons (
 ### Phase 3: The Ranking UI & Logic
 - [x] Initialized Expo (React Native) project with modern "Dark Forest" theme.
 - [x] Implemented editorial Splash screen and Home Dashboard.
+- [x] Completed Strava OAuth2 integration with AuthContext and platform-specific redirects.
 - [ ] Create the Bradley-Terry/Elo update function in the backend.
 - [ ] Design React Native "Pairwise Vote" swipe component.
 - [ ] Build "Leaderboard" view showing Global vs. Friend rankings.

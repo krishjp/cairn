@@ -76,6 +76,13 @@ Copy the `.env.example` file to `.env` and fill in your credentials:
 cp .env.example .env
 ```
 
+**Frontend Environment:**
+Create a `.env` file in the `frontend` directory:
+```bash
+# frontend/.env
+EXPO_PUBLIC_API_URL=https://your-ngrok-url.ngrok-free.dev
+```
+
 ### 2. Start Services
 Ensure Docker is running and execute:
 
