@@ -73,7 +73,7 @@ export default function Home() {
             <CairnLogo size={70} color={Colors.primary} />
           </View>
           <Text style={styles.heroTitle}>Cairn</Text>
-          <Text style={styles.heroSubtitle}>Your social trail companion.</Text>
+          <Text style={styles.heroSubtitle}>Your social trail network.</Text>
         </LinearGradient>
 
         {/* Action Button */}

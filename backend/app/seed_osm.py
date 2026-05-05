@@ -5,7 +5,6 @@ from app.services.osm import seed_canonical_routes
 
 logging.basicConfig(level=logging.INFO)
 
-from app.core.constants import PARKS, DEFAULT_SEED_BBOX
 
 logging.basicConfig(level=logging.INFO)
 
