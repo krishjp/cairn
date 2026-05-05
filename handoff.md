@@ -5,7 +5,7 @@
 
 ## 2. Technical Stack
 - **Backend:** FastAPI (Python 3.11)
-- **Database:** PostgreSQL 15 + PostGIS (Geospatial indexing)
+- **Database:** PostgreSQL 18 + PostGIS 3.6 (Geospatial indexing)
 - **ORM:** SQLModel (SQLAlchemy-based) + GeoAlchemy2
 - **Tunnels:** Dockerized ngrok for local webhook/OAuth testing
 - **Integration:** Strava API (OAuth2 + Webhooks)
