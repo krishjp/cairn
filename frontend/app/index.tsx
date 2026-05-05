@@ -1,9 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { StyleSheet, Text, View, TouchableOpacity, ScrollView, Animated, Dimensions } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, ScrollView, Animated, Dimensions, SafeAreaView } from 'react-native';
 import { router } from 'expo-router';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../constants/Colors';
 import { CairnLogo } from '../components/CairnLogo';
 import { StravaLogo } from '../components/StravaLogo';
@@ -68,59 +66,74 @@ export default function Home() {
 
   return (
     <Animated.View style={[styles.container, { opacity: contentFadeAnim }]}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* Hero Section */}
-        <LinearGradient
-          colors={['#1B2E1B', Colors.background]}
-          style={styles.hero}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 0, y: 1 }}
-        >
-          <View style={styles.topLeftLogo}>
-            <CairnLogo size={70} color={Colors.primary} />
+      <SafeAreaView style={styles.safeArea}>
+        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+          {/* Minimal Nav */}
+          <View style={styles.navBar}>
+            <CairnLogo size={32} color={Colors.primary} />
+            <TouchableOpacity onPress={() => router.push('/auth/strava')}>
+              <Text style={styles.loginText}>Sign In</Text>
+            </TouchableOpacity>
           </View>
-          <Text style={styles.heroTitle}>Cairn</Text>
-          <Text style={styles.heroSubtitle}>Your social trail network.</Text>
-        </LinearGradient>
 
-        {/* Action Button */}
-        <View style={styles.actionContainer}>
-          <TouchableOpacity
-            style={styles.stravaButton}
-            onPress={() => router.push('/auth/strava')}
-          >
-            <StravaLogo size={24} color={Colors.text} />
-            <Text style={[styles.stravaButtonText, { marginLeft: 12 }]}>Begin with Strava</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Mock Leaderboard Preview */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Global Peaks</Text>
-            <Text style={styles.sectionSubtitle}>Highest ranked trails this week</Text>
+          {/* Hero Section - Dictionary Style */}
+          <View style={styles.heroSection}>
+            <View style={styles.heroWordRow}>
+              <Text style={styles.heroWord}>cairn</Text>
+            </View>
+            <Text style={styles.heroPart}>noun • <Text style={styles.heroSubheading}>The social trail network.</Text></Text>
+            <Text style={styles.heroDefinition}>
+              a platform where mountain lovers track activities, challenge friends, and collectively rank the world's most iconic trails.
+            </Text>
           </View>
-          <View style={styles.card}>
-            <LeaderboardItem rank={1} name="Yosemite: Clouds Rest" score={1482} />
-            <LeaderboardItem rank={2} name="Rainier: Skyline Trail" score={1420} />
-            <LeaderboardItem rank={3} name="Zion: Angels Landing" score={1395} />
-          </View>
-        </View>
 
-        {/* Footer */}
-        <PoweredByStrava />
-      </ScrollView>
+          {/* Primary CTA */}
+          <View style={styles.actionContainer}>
+            <TouchableOpacity
+              style={styles.stravaButton}
+              onPress={() => router.push('/auth/strava')}
+            >
+              <StravaLogo size={20} color={Colors.text} />
+              <Text style={styles.stravaButtonText}>Begin with Strava</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.divider} />
+
+          {/* Preview Section */}
+          <View style={styles.previewSection}>
+            <View style={styles.previewHeader}>
+              <Text style={styles.previewTitle}>trending</Text>
+              <Text style={styles.previewSub}>noun • <Text style={styles.subheading}>Global Peaks</Text></Text>
+            </View>
+
+            <View style={styles.previewList}>
+              <PreviewItem rank={1} name="clouds rest" rating={8.42} />
+              <PreviewItem rank={2} name="skyline trail" rating={7.95} />
+              <PreviewItem rank={3} name="angels landing" rating={7.81} />
+            </View>
+          </View>
+
+          <View style={styles.footer}>
+            <PoweredByStrava />
+          </View>
+        </ScrollView>
+      </SafeAreaView>
     </Animated.View>
   );
 }
 
-function LeaderboardItem({ rank, name, score }: { rank: number; name: string; score: number }) {
+function PreviewItem({ rank, name, rating }: { rank: number; name: string; rating: number }) {
   return (
-    <View style={styles.leaderboardItem}>
-      <Text style={styles.rankText}>{rank}</Text>
-      <Text style={styles.trailName}>{name}</Text>
-      <View style={styles.scoreBadge}>
-        <Text style={styles.scoreText}>{score} elo</Text>
+    <View style={styles.previewItem}>
+      <View style={styles.previewItemInfo}>
+        <Text style={styles.rankText}>{rank}.</Text>
+        <View>
+          <Text style={styles.trailName}>{name}</Text>
+        </View>
+      </View>
+      <View style={styles.ratingBadge}>
+        <Text style={styles.ratingText}>{rating.toFixed(2)} rating</Text>
       </View>
     </View>
   );
@@ -130,6 +143,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.background,
+  },
+  safeArea: {
+    flex: 1,
   },
   splashContainer: {
     flex: 1,
@@ -176,105 +192,148 @@ const styles = StyleSheet.create({
     fontWeight: '300',
     letterSpacing: 0.2,
   },
+  navBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+  },
+  loginText: {
+    color: Colors.primary,
+    fontSize: 16,
+    fontWeight: '600',
+  },
   scrollContent: {
     paddingBottom: 40,
   },
-  hero: {
-    padding: 40,
-    paddingTop: 60,
-    alignItems: 'center',
-    marginBottom: 20,
-    position: 'relative',
+  heroSection: {
+    paddingHorizontal: 24,
+    paddingTop: 40,
+    paddingBottom: 30,
   },
-  topLeftLogo: {
-    position: 'absolute',
-    top: 30,
-    left: 24,
-    opacity: 0.9,
+  heroWordRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 12,
   },
-  heroTitle: {
-    fontSize: 52,
-    fontWeight: '900',
+  heroWord: {
+    fontSize: 56,
+    fontWeight: '300',
     color: Colors.text,
-    marginTop: 15,
     letterSpacing: -2,
   },
-  heroSubtitle: {
+  heroPart: {
+    fontSize: 15,
+    color: Colors.primary,
+    fontStyle: 'italic',
+    marginTop: 4,
+  },
+  heroSubheading: {
+    color: Colors.textSecondary,
+    fontStyle: 'normal',
+    fontWeight: '600',
+  },
+  heroDefinition: {
     fontSize: 18,
     color: Colors.textSecondary,
-    marginTop: 5,
-    textAlign: 'center',
+    marginTop: 16,
+    lineHeight: 28,
     fontWeight: '300',
   },
   actionContainer: {
     paddingHorizontal: 24,
-    marginBottom: 50,
+    marginTop: 20,
+    marginBottom: 40,
   },
   stravaButton: {
-    backgroundColor: Colors.surfaceSecondary,
+    backgroundColor: Colors.surface,
     flexDirection: 'row',
-    height: 60,
-    borderRadius: 20,
+    height: 64,
+    borderRadius: 0,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
     borderColor: Colors.border,
+    gap: 12,
   },
   stravaButtonText: {
     color: Colors.text,
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: '700',
   },
-  section: {
+  divider: {
+    height: 1,
+    backgroundColor: Colors.border,
+    marginHorizontal: 24,
+    marginBottom: 40,
+  },
+  previewSection: {
     paddingHorizontal: 24,
   },
-  sectionHeader: {
-    marginBottom: 15,
+  previewHeader: {
+    marginBottom: 24,
   },
-  sectionTitle: {
-    fontSize: 24,
-    fontWeight: '800',
+  previewTitle: {
+    fontSize: 32,
+    fontWeight: '300',
     color: Colors.text,
+    letterSpacing: -1,
   },
-  sectionSubtitle: {
+  previewSub: {
     fontSize: 14,
-    color: Colors.textSecondary,
+    color: Colors.primary,
+    fontStyle: 'italic',
     marginTop: 2,
   },
-  card: {
+  subheading: {
+    color: Colors.textSecondary,
+    fontStyle: 'normal',
+    fontWeight: '600',
+  },
+  previewList: {
+    gap: 16,
+  },
+  previewItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     backgroundColor: Colors.surface,
-    borderRadius: 24,
-    padding: 8,
+    padding: 20,
+    borderRadius: 0,
     borderWidth: 1,
     borderColor: Colors.border,
   },
-  leaderboardItem: {
+  previewItemInfo: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 18,
-    paddingHorizontal: 16,
+    gap: 12,
   },
   rankText: {
     fontSize: 20,
-    fontWeight: '900',
-    color: Colors.secondary,
-    width: 40,
+    fontWeight: '800',
+    color: Colors.primary,
   },
   trailName: {
-    flex: 1,
-    fontSize: 16,
+    fontSize: 18,
+    fontWeight: '300',
     color: Colors.text,
-    fontWeight: '600',
   },
-  scoreBadge: {
-    backgroundColor: Colors.surfaceSecondary,
-    paddingHorizontal: 12,
+  ratingBadge: {
+    backgroundColor: 'rgba(67, 160, 71, 0.1)',
+    paddingHorizontal: 10,
     paddingVertical: 6,
-    borderRadius: 12,
+    borderRadius: 0,
+    borderWidth: 1,
+    borderColor: 'rgba(67, 160, 71, 0.2)',
   },
-  scoreText: {
+  ratingText: {
     color: Colors.primary,
     fontWeight: '800',
     fontSize: 13,
+  },
+  footer: {
+    marginTop: 60,
+    paddingBottom: 40,
   },
 });

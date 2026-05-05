@@ -7,6 +7,7 @@ from app.services import strava as strava_service
 from app.services.strava import get_activity_stream, stream_to_wkt
 from app.services.matching import match_activity_to_route
 from app.models.models import User, Activity, StravaAccount
+import uuid
 import logging
 
 router = APIRouter()
@@ -62,11 +63,55 @@ async def callback(
         # Redirect back to the app/web using the provided state as target
         separator = "&" if "?" in state else "?"
         return RedirectResponse(
-            url=f"{state}{separator}status=success&name={user.display_name}"
+            url=f"{state}{separator}status=success&name={user.display_name}&id={user.id}"
         )
     except Exception as e:
         logger.error(f"OAuth Error: {e}")
         raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/sync")
+async def sync_activities(user_id: uuid.UUID, session: Session = Depends(get_session)):
+    """Manually trigger a sync of recent Strava activities."""
+    strava_stmt = select(StravaAccount).where(StravaAccount.user_id == user_id)
+    strava_acc = session.exec(strava_stmt).first()
+
+    if not strava_acc or not strava_acc.access_token:
+        raise HTTPException(status_code=400, detail="Strava account not linked")
+
+    try:
+        activities = strava_service.get_recent_activities(strava_acc.access_token)
+        synced_count = 0
+
+        for act in activities:
+            activity_id = act.get("id")
+            # Check if already exists
+            existing = session.exec(
+                select(Activity).where(Activity.strava_activity_id == str(activity_id))
+            ).first()
+            if existing:
+                continue
+
+            # Fetch stream and process
+            stream_data = get_activity_stream(activity_id, strava_acc.access_token)
+            wkt = stream_to_wkt(stream_data)
+
+            if wkt:
+                new_activity = Activity(
+                    user_id=user_id,
+                    strava_activity_id=str(activity_id),
+                    raw_polyline=wkt,
+                )
+                session.add(new_activity)
+                session.flush()
+                match_activity_to_route(new_activity.id, session=session)
+                synced_count += 1
+
+        session.commit()
+        return {"status": "ok", "synced": synced_count}
+    except Exception as e:
+        logger.error(f"Sync Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/webhook")

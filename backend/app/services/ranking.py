@@ -17,7 +17,7 @@ def calculate_elo_update(
     Calculate new Elo ratings for a winner and a loser.
     """
     # Expected scores
-    expected_winner = 1 / (1 + 10 ** ((loser_rating - winner_rating) / 400))
+    expected_winner = 1 / (1 + 10 ** ((loser_rating - winner_rating) / 4.0))
     expected_loser = 1 - expected_winner
 
     # New ratings

@@ -10,7 +10,7 @@ class UserRouteRating(SQLModel, table=True):
     __tablename__ = "user_route_ratings"
     user_id: uuid.UUID = Field(foreign_key="users.id", primary_key=True)
     canonical_route_id: int = Field(foreign_key="canonical_routes.id", primary_key=True)
-    rating_score: float = Field(default=1000.0, sa_column=Column(Float, nullable=False))
+    rating_score: float = Field(default=5.0, sa_column=Column(Float, nullable=False))
 
     user: "User" = Relationship(back_populates="route_ratings")
     canonical_route: "CanonicalRoute" = Relationship(back_populates="user_ratings")
@@ -87,7 +87,7 @@ class CanonicalRoute(SQLModel, table=True):
     difficulty_rating: Optional[float] = Field(
         default=None, sa_column=Column(Float, nullable=True)
     )
-    rating_score: float = Field(default=1000.0, sa_column=Column(Float, nullable=False))
+    rating_score: float = Field(default=5.0, sa_column=Column(Float, nullable=False))
 
     activities: List["Activity"] = Relationship(back_populates="canonical_route")
     user_ratings: List["UserRouteRating"] = Relationship(
@@ -130,3 +130,13 @@ class Comparison(SQLModel, table=True):
     )
 
     user: User = Relationship(back_populates="comparisons")
+
+
+class Bookmark(SQLModel, table=True):
+    __tablename__ = "bookmarks"
+    user_id: uuid.UUID = Field(foreign_key="users.id", primary_key=True)
+    canonical_route_id: int = Field(foreign_key="canonical_routes.id", primary_key=True)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+    user: User = Relationship()
+    canonical_route: CanonicalRoute = Relationship()

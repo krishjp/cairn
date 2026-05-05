@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlmodel import Session
+from sqlmodel import Session, select
 from app.core.db import get_session
 from app.core.config import settings
-from app.models.models import Activity, CanonicalRoute
+from app.models.models import Activity, CanonicalRoute, Bookmark
 from app.services.geometry import trim_linestring_by_meters, simplify_geometry
 from geoalchemy2.shape import to_shape, from_shape
 import uuid
@@ -10,6 +10,49 @@ import logging
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+
+@router.get("/search")
+def search_routes(q: str, session: Session = Depends(get_session)):
+    """Search for trails by name."""
+    stmt = select(CanonicalRoute).where(CanonicalRoute.name.ilike(f"%{q}%"))
+    results = session.exec(stmt).all()
+    return [
+        {"id": r.id, "name": r.name, "elo": r.rating_score}
+        for r in results
+    ]
+
+
+@router.post("/bookmark/{route_id}")
+def toggle_bookmark(
+    route_id: int, user_id: uuid.UUID, session: Session = Depends(get_session)
+):
+    """Toggle a bookmark for a trail."""
+    stmt = select(Bookmark).where(
+        Bookmark.user_id == user_id, Bookmark.canonical_route_id == route_id
+    )
+    existing = session.exec(stmt).first()
+
+    if existing:
+        session.delete(existing)
+        session.commit()
+        return {"status": "unbookmarked"}
+    else:
+        new_bookmark = Bookmark(user_id=user_id, canonical_route_id=route_id)
+        session.add(new_bookmark)
+        session.commit()
+        return {"status": "bookmarked"}
+
+
+@router.get("/bookmarks/{user_id}")
+def get_bookmarks(user_id: uuid.UUID, session: Session = Depends(get_session)):
+    """List all bookmarked trails for a user."""
+    stmt = select(CanonicalRoute).join(Bookmark).where(Bookmark.user_id == user_id)
+    results = session.exec(stmt).all()
+    return [
+        {"id": r.id, "name": r.name, "elo": r.rating_score}
+        for r in results
+    ]
 
 
 @router.post("/promote-activity/{activity_id}")

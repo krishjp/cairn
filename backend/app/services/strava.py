@@ -46,6 +46,16 @@ def get_activity(activity_id: int, access_token: str):
     return response.json()
 
 
+def get_recent_activities(access_token: str, limit: int = 10):
+    """Fetch recent activities from Strava."""
+    url = "https://www.strava.com/api/v3/athlete/activities"
+    headers = {"Authorization": f"Bearer {access_token}"}
+    params = {"per_page": limit}
+    response = requests.get(url, headers=headers, params=params)
+    response.raise_for_status()
+    return response.json()
+
+
 def stream_to_wkt(stream_data: dict) -> Optional[str]:
     """Convert Strava stream data to WKT LineString."""
     latlng = stream_data.get("latlng", {}).get("data")

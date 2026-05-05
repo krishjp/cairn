@@ -23,8 +23,8 @@ class Settings(BaseSettings):
 
     # Ranking Constants
     # K-factor determines how much the rating changes after each comparison
-    DEFAULT_ELO_K_FACTOR: int = 32
-    INITIAL_ELO_RATING: float = 1000.0
+    DEFAULT_ELO_K_FACTOR: float = 0.4
+    INITIAL_ELO_RATING: float = 5.0
 
     model_config = SettingsConfigDict(env_file=".env", case_sensitive=True)
 

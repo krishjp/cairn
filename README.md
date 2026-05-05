@@ -4,6 +4,7 @@ Cairn is a social platform for hikers to track Strava activities and rank trails
 
 ## Technical Stack
 
+*   **Frontend:** Expo / React Native (TypeScript) - Cross-platform (iOS, Android, Web)
 *   **Backend:** FastAPI (Python 3.11)
 *   **Database:** PostgreSQL 18 + PostGIS 3.6 (Geospatial indexing)
 *   **ORM:** SQLModel (SQLAlchemy-based) + GeoAlchemy2
@@ -53,20 +54,22 @@ Cairn automatically identifies which trail a user hiked by comparing their raw G
 *   **Trail Promotion:** For activities with <80% match, users can "promote" their track to a new Canonical Route. The system automatically cleans the track by trimming trailhead noise (default 50m) and simplifying the geometry.
 
 ### 2. Ranking Engine
-Trails are ranked using a Bradley-Terry model implemented via an Elo-based update system. Every vote updates two distinct streams:
+Trails are ranked using a Bradley-Terry model implemented via an Elo-based update system, now normalized to a **1.00 to 10.00 scale**. Every comparison updates two distinct streams:
 
 *   **Personal Ranking:** Private to the user, reflecting their individual preferences.
 *   **Friends Ranking:** Aggregated scores from people the user follows.
 *   **Global Ranking:** A community-wide consensus score stored on the canonical route.
 
-```mermaid
-flowchart LR
-    Vote[User Vote: A > B] --> Global[Update Global Elo]
-    Vote --> Personal[Update User Personal Elo]
-    Global --> Leaderboard[Global Leaderboard]
-    Personal --> Friends[Friends Leaderboard]
-    Personal --> Profile[User Profile Ranking]
-```
+#### Calibration Phase
+New users enter a **Calibration Phase** where their profile remains private until they have ranked at least **10 trails**. This ensures that personal profiles reflect a meaningful baseline of preferences before being shared with the "Mountain Circle."
+
+## UI & Design Philosophy
+
+Cairn follows a premium **"Dictionary-Style"** aesthetic:
+*   **Minimalist Interface:** Sharp lines, architectural layouts, and a nature-inspired color palette.
+*   **Dual Viewports:** Seamlessly toggle between your global "Mountain Circle" feed and your personal ranked list.
+*   **Deep Filtering:** Refine trail views by Distance, **Elevation Gain**, Location (City/Region), and Difficulty.
+*   **Contextual Splash:** Architectural loading screens that define the platform's core philosophy.
 
 ## Setup and Installation
 

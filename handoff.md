@@ -12,32 +12,37 @@
 - **Integration:** Strava API (OAuth2 + Webhooks)
 
 ## 3. Current Status
-The project has successfully bridged the gap between the FastAPI backend and the Expo mobile app, establishing a functional authentication and user lifecycle flow.
+The project has transitioned into a functional "Dictionary-Style" platform with a stable identity system and a refined ranking engine.
 
 ### Completed Tasks:
-- [x] **Strava OAuth2 Integration**: End-to-end flow working with `WebBrowser` and `AuthSession`.
-- [x] **Cross-Platform Redirects**: Backend now supports dynamic `state` parameters to redirect back to either the mobile app (`cairn-app://`) or web browser (`localhost:8081`).
-- [x] **CORS Configuration**: Backend is configured to allow requests from the local Expo development origin.
-- [x] **Auth State Management**: Implemented `AuthContext` on the frontend to manage global user sessions and profile persistence.
-- [x] **Premium Dashboard**: Replaced the landing page with a "Beli-style" dashboard featuring an activity feed and Strava syncing interface.
-- [x] **Branding & Assets**: Tightened logo assets and configured browser tab titles ("Cairn") for web builds.
+- [x] **New Rating System**: Migrated from 1000 Elo to a human-readable **1.00 - 10.00 scale**.
+- [x] **Calibration Phase**: Users now have a "Calibrating" status until they rank **10 hikes**.
+- [x] **Dual Viewport Feed**: Users can toggle between the global "Mountain Circle" and their personal "My Rankings" list.
+- [x] **Deep Filtering**: Implemented a filter drawer for Distance, **Elevation Gain**, and Location.
+- [x] **Dictionary Aesthetic**: Implemented a premium, minimalist architectural UI with a focus on typography.
+- [x] **Static Tunnel Stabilization**: Configured ngrok with pooling and skip-headers to ensure reliable development connectivity.
+- [x] **Phonetics (Splash Only)**: Automated phonetic generation was tested but moved exclusively to the Splash screen to keep the main UI clean.
 
 ### Verified State:
 - `docker-compose up` runs successfully.
 - `npm run web` launches the frontend.
-- Authentication correctly redirects to the Dashboard upon success.
+- Backend and DB correctly handle UUID-based user identities and 1-10 rating scores.
+- Ngrok tunnel is currently experiencing a conflict with a home session (Mac); see Troubleshooting.
 
 ## 4. Key Configuration Files
-- `backend/app/main.py`: Contains CORS middleware and router definitions.
-- `frontend/.env`: Defines `EXPO_PUBLIC_API_URL` for backend connectivity.
-- `frontend/app/(app)/dashboard.tsx`: Main user interface post-login.
-- `frontend/context/AuthContext.tsx`: Global session management.
+- `backend/app/core/config.py`: Contains rating system constants (`INITIAL_ELO_RATING=5.0`).
+- `backend/app/services/ranking.py`: Core ranking logic with updated logistic scale factors.
+- `frontend/app/(app)/dashboard.tsx`: Main user interface with View Toggles and Filter Drawer.
+- `frontend/app/index.tsx`: Splash screen with dictionary phonetics.
 
 ## 5. Next Steps
-1. **Real Data Fetching**: Connect the "Sync Activities" button to a backend endpoint that pulls the latest Strava streams.
-2. **Swipe Interface**: Implement the React Native "Pairwise Vote" component to rank recently synced hikes.
-3. **Leaderboards**: Build the mobile UI for Global vs. Friend rankings based on backend Elo scores.
-4. **Hikebox Integration**: Support manual polyline uploads for non-Strava activities.
+1. **Filter Integration**: Connect the frontend filter chips to backend query parameters in `routes/search`.
+2. **Ranking UI**: Build the pairwise "Trail Choice" screen where users actually perform the rankings that drive the calibration bar.
+3. **Strava Webhook Logic**: Finalize the activity-to-canonical route matching logic now that User IDs are UUIDs.
+4. **Unit Preferences**: Implement the Metric/Imperial toggle in the Settings page.
+
+## 6. Troubleshooting
+- **Ngrok Conflict**: If the `cairn-ngrok-1` container fails with `ERR_NGROK_334`, ensure all other ngrok sessions using the `comrade-devotion-divinity` domain are terminated (check other devices/Macs).
 
 ---
 *Generated on 2026-05-05*

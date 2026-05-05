@@ -45,10 +45,14 @@ export default function StravaAuth() {
         const url = new URL(result.url);
         const status = url.searchParams.get('status');
         const name = url.searchParams.get('name');
+        const id = url.searchParams.get('id');
 
         if (status === 'success') {
           // Update the global auth state
-          signIn({ name: name || 'Explorer' });
+          signIn({ 
+            id: id || '', 
+            name: name || 'Explorer' 
+          });
           
           Alert.alert("Success", `Connected as ${name || 'Athlete'}`);
           
