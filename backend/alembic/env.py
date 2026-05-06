@@ -29,15 +29,16 @@ target_metadata = SQLModel.metadata
 # my_important_option = config.get_main_option("my_important_option")
 # ... etc.
 
+
 def include_object(object, name, type_, reflected, compare_to):
     if type_ == "table" and (
-        name == "spatial_ref_sys" or 
-        name == "topology" or 
-        name == "layer" or
-        name == "raster_columns" or
-        name == "raster_overviews" or
-        name.startswith("geography_columns") or
-        name.startswith("geometry_columns")
+        name == "spatial_ref_sys"
+        or name == "topology"
+        or name == "layer"
+        or name == "raster_columns"
+        or name == "raster_overviews"
+        or name.startswith("geography_columns")
+        or name.startswith("geometry_columns")
     ):
         return False
     return True
@@ -83,7 +84,7 @@ def run_migrations_online() -> None:
 
     with connectable.connect() as connection:
         context.configure(
-            connection=connection, 
+            connection=connection,
             target_metadata=target_metadata,
             include_object=include_object,
         )

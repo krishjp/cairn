@@ -3,6 +3,7 @@ from app.core.config import settings
 
 engine = create_engine(settings.DATABASE_URL)
 
+
 def wipe_rankings():
     with Session(engine) as session:
         print("Wiping comparisons...")
@@ -11,6 +12,7 @@ def wipe_rankings():
         session.exec(text("DELETE FROM user_route_ratings"))
         session.commit()
     print("Cleanup complete. All rankings and comparisons have been reset.")
+
 
 if __name__ == "__main__":
     wipe_rankings()

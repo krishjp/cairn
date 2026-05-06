@@ -74,5 +74,5 @@ def test_friends_leaderboard(session: Session):
     assert len(results) == 2
     # r1 should be first because friend ranked it higher
     assert results[0]["name"] == "Trail 1"
-    assert results[0]["friends_avg_score"] > 1000
-    assert results[1]["friends_avg_score"] < 1000
+    assert results[0]["friends_avg_score"] > 5.0
+    assert results[1]["friends_avg_score"] < 5.0

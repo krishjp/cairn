@@ -1,7 +1,7 @@
 # Project "Cairn" (Beli for Hikes) - Technical Specification
 
 ## 1. Project Vision
-A social platform for hikers to connect, track activity via Strava or custom hardware, and rank trails using a pairwise comparison engine (Bradley-Terry model). The system bridges the gap between variable GPS tracks and static "Canonical Routes" using a **Staging Area** workflow where users manually verify and promote activities to definitive trail matches.
+A social platform for hikers to connect, track activity via Strava or custom hardware, and rank trails using a Bayesian ranking engine (TrueSkill model). The system bridges the gap between variable GPS tracks and static "Canonical Routes" using a **Staging Area** workflow where users manually verify and promote activities to definitive trail matches.
 
 ## 2. Technical Stack
 - **Frontend:** React Native (Expo) for cross-platform mobile access and Bluetooth/Map integration.
@@ -26,14 +26,16 @@ Unlike restaurants, hikes are lines, not points.
 - **Auto-Matching (Heuristic):** The system attempts to suggest a match based on geospatial overlap (>80%), but the **User Match** is the final authority.
 
 ### C. The Ranking Engine (The "Beli" Logic)
-- **Algorithm:** pairwise comparison logic (Bradley-Terry implementation).
-- **Status:** **[UNDER REVISION]** Current score distributions are unsatisfactory. The algorithm will be revisited to improve normalization and handle edge cases in trail difficulty.
+- **Algorithm:** **TrueSkill Bayesian Inference**.
+- **Metrics:** Tracks Quality ($\mu$) and Uncertainty ($\sigma$) for every trail.
+- **Dynamic Bucketing**: Automatically partitions trails into **Peak (Top 25%)**, **Another Hike (Middle 50%)**, and **A Hill (Bottom 25%)** based on percentile rank.
+- **Active Selection**: Calibration is driven by match quality, prioritizing comparisons between trails with similar scores and high uncertainty to maximize information gain.
 - **Metric:** Human-readable **1.00 - 10.00 scale**.
 - **Calibration Phase**: Users must rank **5 trails** before their scores are visible to the public feed.
 - **Workflow:**
     1. User promotes an activity to a Canonical Route.
     2. UI presents: "Which was better: [New Hike] or [Previous Hike]?"
-    3. Database updates rankings.
+    3. Database updates $\mu$ and $\sigma$ values.
 
 ### D. Activity Management
 - **Ignore**: Users can hide non-hike activities (commutes, walks).
@@ -85,6 +87,8 @@ CREATE TABLE activities (
 - [x] Resolve TypeScript focus/styling conflicts for premium web UI.
 
 ### Phase 4: Ranking Refinement
-- [ ] Implement advanced Bradley-Terry weighting (distance/elevation influence).
+- [x] Implement TrueSkill Bayesian engine with $\mu$ and $\sigma$ updates.
+- [x] Build Active Match Selection logic based on match quality.
+- [x] Implement Dynamic Percentile Bucketing (25/50/25).
 - [ ] Build global leaderboard visualization with Mountain Circle graph.
 - [ ] Add Activity Detail view with PostGIS-rendered maps.

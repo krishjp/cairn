@@ -1,7 +1,7 @@
 # Project Cairn - Handoff Summary
 
 ## 1. Project Overview
-**Cairn** is a social platform for hikers to track Strava activities and rank trails using a pairwise comparison engine (Bradley-Terry model).
+**Cairn** is a social platform for hikers to track Strava activities and rank trails using a Bayesian ranking engine (TrueSkill model).
 
 ## 2. Technical Stack
 - **Backend:** FastAPI (Python 3.11)
@@ -15,7 +15,9 @@
 The project has transitioned into a functional "Dictionary-Style" platform with a stable identity system, a refined ranking engine, and a robust manual-matching staging area.
 
 ### Completed Tasks:
-- [x] **New Rating System**: Migrated to a human-readable **1.00 - 10.00 scale**.
+- [x] **New Rating System**: Migrated to a **TrueSkill Bayesian** engine on a **0.00 - 10.00 scale**.
+- [x] **Dynamic Bucketing**: Implemented automatic 25/50/25 percentile distribution for **Peak / Another Hike / A Hill**.
+- [x] **Active Match Selection**: Calibrations are now driven by **Match Quality** to ensure the fastest path to ranking stability.
 - [x] **Calibration Phase**: Threshold refined to **5 ranked hikes** for personal list visibility.
 - [x] **Ranking UI**: Implemented a side-by-side pairwise comparison screen with **Anchored Matching**.
 - [x] **First-Hike Baseline**: Implemented a "Quick Rank" workflow for the first hike.
@@ -33,8 +35,9 @@ The project has transitioned into a functional "Dictionary-Style" platform with 
 - Backend and DB correctly handle UUID-based user identities and 1-10 rating scores.
 
 ## 4. Key Configuration Files
-- `backend/app/core/config.py`: Contains rating system constants (`INITIAL_ELO_RATING=5.0`).
-- `backend/app/services/ranking.py`: Core ranking logic with updated logistic scale factors.
+- `backend/app/core/config.py`: Contains TrueSkill parameters and bucket percentiles.
+- `backend/app/services/ranking_service.py`: Core Bayesian logic for $\mu$ and $\sigma$ updates and Match Quality calculations.
+- `backend/app/api/v1/endpoints/ranking.py`: Personal leaderboard with dynamic percentile labeling.
 - `frontend/app/(app)/dashboard.tsx`: Main user interface with View Toggles and Filter Drawer.
 - `frontend/app/index.tsx`: Splash screen with dictionary phonetics.
 

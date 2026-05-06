@@ -17,10 +17,7 @@ def search_routes(q: str, session: Session = Depends(get_session)):
     """Search for trails by name."""
     stmt = select(CanonicalRoute).where(CanonicalRoute.name.ilike(f"%{q}%"))
     results = session.exec(stmt).all()
-    return [
-        {"id": r.id, "name": r.name, "elo": r.rating_score}
-        for r in results
-    ]
+    return [{"id": r.id, "name": r.name, "rating": r.rating_score} for r in results]
 
 
 @router.post("/bookmark/{route_id}")
@@ -49,10 +46,7 @@ def get_bookmarks(user_id: uuid.UUID, session: Session = Depends(get_session)):
     """List all bookmarked trails for a user."""
     stmt = select(CanonicalRoute).join(Bookmark).where(Bookmark.user_id == user_id)
     results = session.exec(stmt).all()
-    return [
-        {"id": r.id, "name": r.name, "elo": r.rating_score}
-        for r in results
-    ]
+    return [{"id": r.id, "name": r.name, "rating": r.rating_score} for r in results]
 
 
 @router.post("/promote-activity/{activity_id}")
@@ -87,7 +81,9 @@ def promote_activity(
         new_route = CanonicalRoute(
             name=name,
             geometry=from_shape(final_shape, srid=4326),
-            rating_score=settings.INITIAL_ELO_RATING,
+            rating_mu=5.0,
+            rating_sigma=settings.RANKING_INITIAL_SIGMA,
+            rating_score=5.0,
         )
 
         session.add(new_route)

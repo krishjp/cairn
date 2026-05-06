@@ -34,9 +34,13 @@ def test_match_activity_to_route(session: Session):
     session.add(user)
     session.commit()
 
+    from geoalchemy2.shape import from_shape
+
+    line = LineString([(0, 0), (1, 1), (2, 2)])
+
     # create a canonical route
     route = CanonicalRoute(
-        osm_id=123, name="Test Trail", geometry="LINESTRING(0 0, 1 1, 2 2)"
+        osm_id=123, name="Test Trail", geometry=from_shape(line, srid=4326)
     )
     session.add(route)
     session.commit()
@@ -45,7 +49,7 @@ def test_match_activity_to_route(session: Session):
     activity = Activity(
         user_id=user.id,
         strava_activity_id=456,
-        raw_polyline="LINESTRING(0 0, 1 1, 2 2)",
+        raw_polyline=from_shape(line, srid=4326),
     )
     session.add(activity)
     session.commit()

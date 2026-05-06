@@ -24,7 +24,7 @@ export default function Dashboard() {
   const [unmatchedActivities, setUnmatchedActivities] = useState<any[]>([]);
   const [showScores, setShowScores] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  
+
   // Matching Modal State
   const [isMatchModalVisible, setIsMatchModalVisible] = useState(false);
   const [matchingActivity, setMatchingActivity] = useState<any>(null);
@@ -83,13 +83,13 @@ export default function Dashboard() {
         } else {
           setUserRankings([]);
         }
-        
+
         if (data.unmatched_activities) {
           setUnmatchedActivities(data.unmatched_activities);
         } else {
           setUnmatchedActivities([]);
         }
-        
+
         setShowScores(data.show_scores);
       } else {
         setUserRankings([]);
@@ -160,14 +160,14 @@ export default function Dashboard() {
 
   const promoteActivity = async (routeId: number) => {
     if (!matchingActivity || isPromoting) return;
-    
+
     setIsPromoting(true);
     try {
       const response = await fetch(
         `${process.env.EXPO_PUBLIC_API_URL}/api/v1/strava/promote?activity_id=${matchingActivity.id}&route_id=${routeId}`,
-        { 
+        {
           method: 'POST',
-          headers: { 'ngrok-skip-browser-warning': 'true' } 
+          headers: { 'ngrok-skip-browser-warning': 'true' }
         }
       );
       const data = await response.json();
@@ -189,9 +189,9 @@ export default function Dashboard() {
     try {
       const response = await fetch(
         `${process.env.EXPO_PUBLIC_API_URL}/api/v1/strava/ignore?activity_id=${activityId}`,
-        { 
+        {
           method: 'POST',
-          headers: { 'ngrok-skip-browser-warning': 'true' } 
+          headers: { 'ngrok-skip-browser-warning': 'true' }
         }
       );
       const data = await response.json();
@@ -205,9 +205,9 @@ export default function Dashboard() {
 
   const toggleBookmark = async (routeId: string) => {
     if (!user?.id) return;
-    setBookmarks(prev => 
-      prev.includes(routeId) 
-        ? prev.filter(id => id !== routeId) 
+    setBookmarks(prev =>
+      prev.includes(routeId)
+        ? prev.filter(id => id !== routeId)
         : [...prev, routeId]
     );
   };
@@ -218,7 +218,7 @@ export default function Dashboard() {
 
   const ActivityCard = ({ item, isRankView = false, isStaging = false }: { item: any, isRankView?: boolean, isStaging?: boolean }) => (
     <View key={item.id} style={[
-      styles.activityCard, 
+      styles.activityCard,
       !item.is_ranked && isRankView && styles.unrankedCard,
       isStaging && styles.stagingCard
     ]}>
@@ -228,15 +228,17 @@ export default function Dashboard() {
         </View>
         <View style={[styles.ratingBadge, isStaging && { borderColor: Colors.border }]}>
           <Text style={[styles.ratingValueText, isStaging && { color: Colors.textSecondary }]}>
-            {isStaging 
+            {isStaging
               ? '--'
-              : (!isRankView) 
+              : (!isRankView)
                 ? (item.global_rating || 0).toFixed(2)
-                : (item.is_ranked && showScores) 
-                  ? (item.personal_score || 0).toFixed(2) 
+                : (item.is_ranked && showScores)
+                  ? (item.personal_score || 0).toFixed(2)
                   : '--'}
           </Text>
-          <Text style={[styles.ratingLabelText, isStaging && { color: Colors.textSecondary }]}>rating</Text>
+          <Text style={[styles.ratingLabelText, isStaging && { color: Colors.textSecondary }]}>
+            {(isRankView && item.bucket) ? item.bucket : 'rating'}
+          </Text>
         </View>
       </View>
 
@@ -285,17 +287,17 @@ export default function Dashboard() {
             </Text>
           </View>
         </View>
-        
+
         {isStaging ? (
-           <View style={styles.stagingActions}>
-             <TouchableOpacity 
+          <View style={styles.stagingActions}>
+            <TouchableOpacity
               style={styles.ignoreAction}
               onPress={() => ignoreActivity(item.id)}
             >
               <Ionicons name="eye-off-outline" size={16} color={Colors.textSecondary} />
             </TouchableOpacity>
-            
-             <TouchableOpacity 
+
+            <TouchableOpacity
               style={styles.promoteAction}
               onPress={() => {
                 setMatchingActivity(item);
@@ -307,7 +309,7 @@ export default function Dashboard() {
             </TouchableOpacity>
           </View>
         ) : !item.is_ranked && isRankView ? (
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.rankNowAction}
             onPress={() => router.push(`/ranking?fixed_id=${item.canonical_route_id || item.id}`)}
           >
@@ -419,7 +421,7 @@ export default function Dashboard() {
                 >
                   <View style={{ flex: 1 }}>
                     <Text style={styles.resultName}>{result.name}</Text>
-                    <Text style={styles.resultElo}>{(result.elo || 0).toFixed(2)} rating</Text>
+                    <Text style={styles.resultRating}>{(result.rating || 0).toFixed(2)} rating</Text>
                   </View>
                   <Ionicons
                     name={bookmarks.includes(result.id) ? "bookmark" : "bookmark-outline"}
@@ -456,21 +458,21 @@ export default function Dashboard() {
             ) : (
               <>
                 {unmatchedActivities.length > 0 && (
-                   <View style={styles.stagingAreaHeader}>
-                      <Text style={styles.stagingAreaTitle}>staging area</Text>
-                      <Text style={styles.stagingAreaSub}>Promote these activities to trails to start ranking.</Text>
-                   </View>
+                  <View style={styles.stagingAreaHeader}>
+                    <Text style={styles.stagingAreaTitle}>staging area</Text>
+                    <Text style={styles.stagingAreaSub}>Promote these activities to trails to start ranking.</Text>
+                  </View>
                 )}
                 {unmatchedActivities.map((item) => <ActivityCard key={item.id} item={item} isRankView={true} isStaging={true} />)}
-                
+
                 {(userRankings.length > 0 || unmatchedActivities.length > 0) && <View style={styles.divider} />}
-                
+
                 {userRankings.length > 0 && (
-                   <View style={styles.stagingAreaHeader}>
-                      <Text style={styles.stagingAreaTitle}>ranked trails</Text>
-                   </View>
+                  <View style={styles.stagingAreaHeader}>
+                    <Text style={styles.stagingAreaTitle}>ranked trails</Text>
+                  </View>
                 )}
-                
+
                 {!showScores && userRankings.some(r => r.is_ranked) && (
                   <View style={styles.calibrationInfo}>
                     <Ionicons name="information-circle-outline" size={16} color={Colors.primary} />
@@ -501,9 +503,9 @@ export default function Dashboard() {
                 <Ionicons name="close" size={24} color={Colors.text} />
               </TouchableOpacity>
             </View>
-            
+
             <Text style={styles.matchModalSub}>Search for the trail you hiked:</Text>
-            
+
             <View style={styles.matchSearchInputWrapper}>
               <Ionicons name="search-outline" size={20} color={Colors.textSecondary} />
               <TextInput
@@ -517,7 +519,7 @@ export default function Dashboard() {
               />
               {isMatchSearching && <ActivityIndicator size="small" color={Colors.primary} />}
             </View>
-            
+
             <ScrollView style={styles.matchSearchResultsList}>
               {matchSearchResults.map((result) => (
                 <TouchableOpacity
@@ -593,8 +595,8 @@ export default function Dashboard() {
                 <Ionicons name="open-outline" size={18} color={Colors.border} />
               </TouchableOpacity>
 
-              <TouchableOpacity 
-                style={styles.menuItem} 
+              <TouchableOpacity
+                style={styles.menuItem}
                 onPress={() => {
                   setShowProfile(false);
                   router.push('/settings');
@@ -655,34 +657,34 @@ const styles = StyleSheet.create({
   searchResults: { position: 'absolute', top: 110, left: 24, right: 24, backgroundColor: Colors.surface, zIndex: 100, borderWidth: 1, borderColor: Colors.border, elevation: 5 },
   searchResultItem: { flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: Colors.border },
   resultName: { fontSize: 16, color: Colors.text, fontWeight: '600' },
-  resultElo: { fontSize: 12, color: Colors.textSecondary, marginTop: 4 },
+  resultRating: { fontSize: 12, color: Colors.textSecondary, marginTop: 4 },
   divider: { height: 1, backgroundColor: Colors.border, marginVertical: 12, opacity: 0.5 },
-  
+
   // Shared Card Styles
-  activityCard: { 
-    marginBottom: 20, 
-    borderWidth: 1, 
-    borderColor: Colors.border, 
-    padding: 20, 
-    backgroundColor: Colors.surface 
+  activityCard: {
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: 20,
+    backgroundColor: Colors.surface
   },
   unrankedCard: {
     borderColor: Colors.primary,
     backgroundColor: Colors.background,
   },
-  cardHeader: { 
-    flexDirection: 'row', 
-    justifyContent: 'space-between', 
-    alignItems: 'center', 
-    marginBottom: 12 
+  cardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12
   },
   trailTitleRow: { flex: 1 },
   trailNameText: { fontSize: 20, fontWeight: '300', color: Colors.text, letterSpacing: -0.5 },
-  ratingBadge: { 
-    backgroundColor: Colors.surfaceSecondary, 
-    paddingHorizontal: 8, 
-    paddingVertical: 4, 
-    borderWidth: 1, 
+  ratingBadge: {
+    backgroundColor: Colors.surfaceSecondary,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderWidth: 1,
     borderColor: Colors.primary,
     alignItems: 'center'
   },
@@ -694,17 +696,17 @@ const styles = StyleSheet.create({
   dateText: { fontSize: 12, color: Colors.textSecondary, fontWeight: '300' },
   pendingBadge: { backgroundColor: Colors.surfaceSecondary, paddingHorizontal: 6, paddingVertical: 2, borderWidth: 1, borderColor: Colors.border },
   pendingText: { fontSize: 8, color: Colors.textSecondary, fontWeight: '800', textTransform: 'uppercase' },
-  activityNotes: { 
-    fontSize: 14, 
-    color: Colors.textSecondary, 
-    fontStyle: 'italic', 
-    marginBottom: 16, 
+  activityNotes: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+    fontStyle: 'italic',
+    marginBottom: 16,
     lineHeight: 20,
     fontWeight: '300'
   },
-  cardFooter: { 
-    flexDirection: 'row', 
-    justifyContent: 'space-between', 
+  cardFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
     paddingTop: 12,
     borderTopWidth: 0.5,
@@ -766,13 +768,13 @@ const styles = StyleSheet.create({
   matchResultName: { fontSize: 16, color: Colors.text, fontWeight: '400' },
   noResultsText: { textAlign: 'center', color: Colors.textSecondary, marginTop: 20, fontStyle: 'italic' },
 
-  calibrationInfo: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    gap: 8, 
-    backgroundColor: Colors.surfaceSecondary, 
-    padding: 12, 
-    borderWidth: 1, 
+  calibrationInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: Colors.surfaceSecondary,
+    padding: 12,
+    borderWidth: 1,
     borderColor: Colors.border,
     marginBottom: 20
   },

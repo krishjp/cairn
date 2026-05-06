@@ -11,6 +11,8 @@ class UserRouteRating(SQLModel, table=True):
     user_id: uuid.UUID = Field(foreign_key="users.id", primary_key=True)
     canonical_route_id: int = Field(foreign_key="canonical_routes.id", primary_key=True)
     rating_score: float = Field(default=5.0, sa_column=Column(Float, nullable=False))
+    rating_mu: float = Field(default=5.0, sa_column=Column(Float, nullable=False))
+    rating_sigma: float = Field(default=1.5, sa_column=Column(Float, nullable=False))
 
     user: "User" = Relationship(back_populates="route_ratings")
     canonical_route: "CanonicalRoute" = Relationship(back_populates="user_ratings")
@@ -88,6 +90,8 @@ class CanonicalRoute(SQLModel, table=True):
         default=None, sa_column=Column(Float, nullable=True)
     )
     rating_score: float = Field(default=5.0, sa_column=Column(Float, nullable=False))
+    rating_mu: float = Field(default=5.0, sa_column=Column(Float, nullable=False))
+    rating_sigma: float = Field(default=1.5, sa_column=Column(Float, nullable=False))
 
     activities: List["Activity"] = Relationship(back_populates="canonical_route")
     user_ratings: List["UserRouteRating"] = Relationship(
@@ -106,9 +110,15 @@ class Activity(SQLModel, table=True):
         sa_column=Column(Geometry("LINESTRING", srid=4326), nullable=False)
     )
     name: Optional[str] = Field(default=None, sa_column=Column(Text, nullable=True))
-    sport_type: Optional[str] = Field(default=None, sa_column=Column(Text, nullable=True))
-    distance: Optional[float] = Field(default=None, sa_column=Column(Float, nullable=True))
-    moving_time: Optional[int] = Field(default=None, sa_column=Column(BigInteger, nullable=True))
+    sport_type: Optional[str] = Field(
+        default=None, sa_column=Column(Text, nullable=True)
+    )
+    distance: Optional[float] = Field(
+        default=None, sa_column=Column(Float, nullable=True)
+    )
+    moving_time: Optional[int] = Field(
+        default=None, sa_column=Column(BigInteger, nullable=True)
+    )
     start_date: Optional[datetime] = Field(
         default=None, sa_column=Column(DateTime, nullable=True)
     )

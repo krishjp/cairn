@@ -21,10 +21,17 @@ class Settings(BaseSettings):
     MATCH_BUFFER_METERS: float = 20.0
     MATCH_SEARCH_RADIUS_METERS: float = 500.0
 
-    # Ranking Constants
-    # K-factor determines how much the rating changes after each comparison
-    DEFAULT_ELO_K_FACTOR: float = 0.4
-    INITIAL_ELO_RATING: float = 5.0
+    # Ranking Constants (TrueSkill)
+    RANKING_BETA: float = 1.0  # Distinguishability (performance noise)
+    RANKING_TAU: float = 0.05  # Dynamics (sigma floor/drift)
+    RANKING_DRAW_PROB: float = 0.05  # Probability of a tie
+    RANKING_INITIAL_SIGMA: float = 1.0
+    RANKING_CALIBRATION_THRESHOLD: int = 5
+
+    # Dynamic Bucket Percentiles (Must sum to 1.0)
+    RANKING_PERCENTILE_PEAK: float = 0.25  # Top 25%
+    RANKING_PERCENTILE_HIKE: float = 0.50  # Next 50%
+    # Hill is implicitly the remainder (25%)
 
     model_config = SettingsConfigDict(env_file=".env", case_sensitive=True)
 

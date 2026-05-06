@@ -79,12 +79,11 @@ def _match_activity_to_route_with_session(
     # Convert activity geometry to Shapely
     activity_shape = _to_shapely(activity.raw_polyline)
 
-    # Find candidate routes using a spatial filter (casting to geography for meters)
-    # We use ST_GeomFromText because raw_polyline might be a string during the first sync
+    # Find candidate routes using a spatial filter
     candidates_statement = select(CanonicalRoute).where(
         func.ST_DWithin(
             func.ST_Transform(CanonicalRoute.geometry, 3857),
-            func.ST_Transform(func.ST_GeomFromText(activity.raw_polyline, 4326), 3857),
+            func.ST_Transform(activity.raw_polyline, 3857),
             settings.MATCH_SEARCH_RADIUS_METERS,
         )
     )

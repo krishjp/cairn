@@ -11,15 +11,51 @@ const { width } = Dimensions.get('window');
 export default function Ranking() {
   const { user } = useAuth();
   const { fixed_id } = useLocalSearchParams();
+  const [step, setStep] = useState<'loading' | 'bucket' | 'compare' | 'complete'>('loading');
+  const [bucketHike, setBucketHike] = useState<any>(null);
   const [data, setData] = useState<any>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [fadeAnim] = useState(new Animated.Value(0));
 
   useEffect(() => {
     if (user?.id) {
-      fetchNextPair();
+      checkInitialization();
     }
   }, [user, fixed_id]);
+
+  const checkInitialization = async () => {
+    if (!fixed_id) {
+      fetchNextPair();
+      return;
+    }
+
+    try {
+      // Check if this specific hike is already ranked
+      const response = await fetch(
+        `${process.env.EXPO_PUBLIC_API_URL}/api/v1/ranking/personal-leaderboard?user_id=${user?.id}`,
+        { headers: { 'ngrok-skip-browser-warning': 'true' } }
+      );
+      const data = await response.json();
+      const isRanked = data.routes.find((r: any) => r.id === parseInt(fixed_id as string))?.is_ranked;
+
+      if (!isRanked) {
+        // We need to pick a bucket first
+        // Fetch the route details
+        const routeResp = await fetch(
+          `${process.env.EXPO_PUBLIC_API_URL}/api/v1/ranking/next-pair?user_id=${user?.id}&fixed_route_id=${fixed_id}`,
+          { headers: { 'ngrok-skip-browser-warning': 'true' } }
+        );
+        const routeData = await routeResp.json();
+        setBucketHike(routeData.route_a);
+        setStep('bucket');
+      } else {
+        fetchNextPair();
+      }
+    } catch (err) {
+      console.error("Check init failed:", err);
+      fetchNextPair();
+    }
+  };
 
   const fetchNextPair = async () => {
     setIsLoading(true);
@@ -31,10 +67,12 @@ export default function Ranking() {
       const response = await fetch(url, { headers: { 'ngrok-skip-browser-warning': 'true' } });
       
       if (response.status === 404) {
+        setStep('complete');
         setData(null);
       } else {
         const result = await response.json();
         setData(result);
+        setStep('compare');
         Animated.timing(fadeAnim, {
           toValue: 1,
           duration: 400,
@@ -45,6 +83,23 @@ export default function Ranking() {
       console.error("Failed to fetch pair:", err);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleInitializeWithBucket = async (bucket: number) => {
+    if (!user?.id || !fixed_id) return;
+    try {
+      await fetch(
+        `${process.env.EXPO_PUBLIC_API_URL}/api/v1/ranking/initialize-with-bucket?user_id=${user.id}&route_id=${fixed_id}&bucket=${bucket}`,
+        { 
+          method: 'POST',
+          headers: { 'ngrok-skip-browser-warning': 'true' }
+        }
+      );
+      // Now that it's initialized, start comparing
+      fetchNextPair();
+    } catch (err) {
+      console.error("Bucket init failed:", err);
     }
   };
 
@@ -64,23 +119,8 @@ export default function Ranking() {
     }
   };
 
-  const handleInitializeFirst = async (routeId: number) => {
-    if (!user?.id) return;
-    try {
-      await fetch(
-        `${process.env.EXPO_PUBLIC_API_URL}/api/v1/ranking/initialize-first?user_id=${user.id}&route_id=${routeId}`,
-        { 
-          method: 'POST',
-          headers: { 'ngrok-skip-browser-warning': 'true' }
-        }
-      );
-      router.back(); // Done with first hike
-    } catch (err) {
-      console.error("Initialization failed:", err);
-    }
-  };
 
-  if (isLoading && !data) {
+  if (step === 'loading') {
     return (
       <View style={styles.centered}>
         <ActivityIndicator size="large" color={Colors.primary} />
@@ -88,7 +128,7 @@ export default function Ranking() {
     );
   }
 
-  if (!data) {
+  if (step === 'complete' || (step === 'compare' && (!data || data.status === 'FIRST_HIKE'))) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.navBar}>
@@ -100,10 +140,69 @@ export default function Ranking() {
           <Ionicons name="checkmark-done-circle-outline" size={64} color={Colors.primary} />
           <Text style={styles.emptyTitle}>calibration complete</Text>
           <Text style={styles.emptySub}>
-            This hike has been sufficiently calibrated against your other treks.
+            {data?.status === 'FIRST_HIKE' 
+              ? "This was your first ranked hike! Once you've promoted more activities, you'll be able to rank them against each other."
+              : "This hike has been sufficiently calibrated against your other treks."}
           </Text>
           <TouchableOpacity style={styles.doneButton} onPress={() => router.back()}>
             <Text style={styles.doneButtonText}>Return to Dashboard</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (step === 'bucket') {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.navBar}>
+          <TouchableOpacity onPress={() => router.back()}>
+            <Ionicons name="close-outline" size={30} color={Colors.text} />
+          </TouchableOpacity>
+          <CairnLogo size={24} color={Colors.primary} />
+          <View style={{ width: 30 }} />
+        </View>
+
+        <View style={styles.header}>
+          <Text style={styles.headerWord}>initial feeling</Text>
+          <Text style={styles.headerPart}>noun • <Text style={styles.subheading}>first impression</Text></Text>
+          <Text style={styles.headerDefinition}>
+            How would you broadly categorize your experience on <Text style={{fontWeight: '700', color: Colors.text}}>{bucketHike?.name}</Text>?
+          </Text>
+        </View>
+
+        <View style={styles.bucketContainer}>
+          <TouchableOpacity style={styles.bucketCard} onPress={() => handleInitializeWithBucket(3)}>
+            <View style={styles.bucketIcon}>
+              <Ionicons name="triangle" size={32} color={Colors.primary} />
+            </View>
+            <View style={styles.bucketTextContainer}>
+              <Text style={styles.bucketTitle}>Peak</Text>
+              <Text style={styles.bucketSub}>"I loved it" • 7.0 - 10.0</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={Colors.border} />
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.bucketCard} onPress={() => handleInitializeWithBucket(2)}>
+            <View style={styles.bucketIcon}>
+              <Ionicons name="remove" size={32} color={Colors.primary} />
+            </View>
+            <View style={styles.bucketTextContainer}>
+              <Text style={styles.bucketTitle}>another hike</Text>
+              <Text style={styles.bucketSub}>"I liked it" • 4.0 - 6.9</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={Colors.border} />
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.bucketCard} onPress={() => handleInitializeWithBucket(1)}>
+            <View style={styles.bucketIcon}>
+              <Ionicons name="ellipse-outline" size={32} color={Colors.primary} />
+            </View>
+            <View style={styles.bucketTextContainer}>
+              <Text style={styles.bucketTitle}>a hill</Text>
+              <Text style={styles.bucketSub}>"I didn't like it" • 0.0 - 3.9</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={Colors.border} />
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -122,46 +221,13 @@ export default function Ranking() {
 
       <View style={styles.header}>
         <Text style={styles.headerWord}>calibration</Text>
-        <Text style={styles.headerPart}>verb • <Text style={styles.subheading}>{data.status === 'FIRST_HIKE' ? 'baseline initialization' : 'comparing experiences'}</Text></Text>
+        <Text style={styles.headerPart}>verb • <Text style={styles.subheading}>comparing experiences</Text></Text>
         <Text style={styles.headerDefinition}>
-          {data.status === 'FIRST_HIKE' 
-            ? "Since this is your first ranked hike, it will be set as your initial 10/10 baseline."
-            : `Ranking ${data.route_a.name} against your previously ranked treks.`}
+          {`Ranking ${data?.route_a?.name} against your previously ranked treks.`}
         </Text>
       </View>
 
       <Animated.View style={[styles.pairContainer, { opacity: fadeAnim }]}>
-        {data.status === 'FIRST_HIKE' ? (
-          <View style={styles.firstHikeContainer}>
-            <View style={[styles.choiceCard, styles.pinnedCard]}>
-              <View style={styles.cardContent}>
-                <Text style={styles.trailName} numberOfLines={3}>{data.route_a.name}</Text>
-                <Text style={styles.trailRegion}>{data.route_a.region || 'mountain region'}</Text>
-                
-                <View style={styles.metricsColumn}>
-                  <View style={styles.metric}>
-                    <Ionicons name="resize-outline" size={14} color={Colors.textSecondary} />
-                    <Text style={styles.metricText}>{(data.route_a.distance_meters / 1609.34).toFixed(1)} mi</Text>
-                  </View>
-                  <View style={styles.metric}>
-                    <Ionicons name="trending-up-outline" size={14} color={Colors.textSecondary} />
-                    <Text style={styles.metricText}>{data.route_a.elevation_gain_meters} ft</Text>
-                  </View>
-                </View>
-              </View>
-              <View style={[styles.selectPrompt, styles.pinnedPrompt]}>
-                <Text style={[styles.promptText, styles.pinnedPromptText]}>Initial 10/10 Baseline</Text>
-              </View>
-            </View>
-            <TouchableOpacity 
-              style={styles.baselineButton} 
-              onPress={() => handleInitializeFirst(data.route_a.id)}
-            >
-              <Text style={styles.baselineButtonText}>Set as First Ranked Hike</Text>
-              <Ionicons name="medal-outline" size={20} color="white" />
-            </TouchableOpacity>
-          </View>
-        ) : (
           <View style={styles.sideBySide}>
             <TouchableOpacity 
               style={[styles.choiceCard, styles.pinnedCard]} 
@@ -215,7 +281,6 @@ export default function Ranking() {
               </View>
             </TouchableOpacity>
           </View>
-        )}
       </Animated.View>
 
       <View style={styles.footerActions}>
@@ -305,5 +370,19 @@ const styles = StyleSheet.create({
   emptyTitle: { fontSize: 24, fontWeight: '300', color: Colors.text, marginTop: 24, marginBottom: 12 },
   emptySub: { fontSize: 16, color: Colors.textSecondary, textAlign: 'center', lineHeight: 24, fontWeight: '300', marginBottom: 40 },
   doneButton: { backgroundColor: Colors.primary, paddingHorizontal: 32, paddingVertical: 16, borderRadius: 0 },
-  doneButtonText: { color: 'white', fontSize: 16, fontWeight: '600' }
+  doneButtonText: { color: 'white', fontSize: 16, fontWeight: '600' },
+  bucketContainer: { paddingHorizontal: 24, gap: 16 },
+  bucketCard: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    backgroundColor: Colors.surface, 
+    borderWidth: 1, 
+    borderColor: Colors.border, 
+    padding: 20, 
+    gap: 16 
+  },
+  bucketIcon: { width: 48, alignItems: 'center' },
+  bucketTextContainer: { flex: 1 },
+  bucketTitle: { fontSize: 20, fontWeight: '800', color: Colors.text, textTransform: 'lowercase' },
+  bucketSub: { fontSize: 13, color: Colors.textSecondary, marginTop: 4, fontWeight: '300' },
 });

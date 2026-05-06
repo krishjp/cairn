@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, Query, Request, HTTPException
 from fastapi.responses import RedirectResponse
-from sqlmodel import Session, select, or_
+from sqlmodel import Session, select
 from app.core.db import get_session
 from app.core.config import settings
 from app.services import strava as strava_service
@@ -29,7 +29,9 @@ def authorize(redirect_uri: str = "cairn-app://auth/strava"):
 
 @router.get("/callback")
 async def callback(
-    code: str, state: str = "cairn-app://auth/strava", session: Session = Depends(get_session)
+    code: str,
+    state: str = "cairn-app://auth/strava",
+    session: Session = Depends(get_session),
 ):
     """Handle Strava OAuth2 callback."""
     try:
@@ -92,7 +94,7 @@ async def sync_activities(user_id: uuid.UUID, session: Session = Depends(get_ses
             existing = session.exec(
                 select(Activity).where(Activity.strava_activity_id == int(activity_id))
             ).first()
-            
+
             if existing:
                 # Update social stats even if activity exists
                 existing.reactions_count = act.get("kudos_count", 0)
@@ -107,7 +109,7 @@ async def sync_activities(user_id: uuid.UUID, session: Session = Depends(get_ses
                 continue
 
             logger.info(f"Processing new activity {activity_id} ({act.get('type')})")
-            
+
             # Fetch stream and process
             stream_data = get_activity_stream(activity_id, strava_acc.access_token)
             wkt = stream_to_wkt(stream_data)
@@ -117,7 +119,9 @@ async def sync_activities(user_id: uuid.UUID, session: Session = Depends(get_ses
                 start_date = None
                 if act.get("start_date"):
                     try:
-                        start_date = datetime.fromisoformat(act.get("start_date").replace('Z', '+00:00'))
+                        start_date = datetime.fromisoformat(
+                            act.get("start_date").replace("Z", "+00:00")
+                        )
                     except Exception:
                         pass
 
@@ -132,15 +136,15 @@ async def sync_activities(user_id: uuid.UUID, session: Session = Depends(get_ses
                     start_date=start_date,
                     notes=act.get("description"),
                     reactions_count=act.get("kudos_count", 0),
-                    comments_count=act.get("comment_count", 0)
+                    comments_count=act.get("comment_count", 0),
                 )
                 session.add(new_activity)
                 session.flush()
-                
+
                 # Only attempt matching for hiking activities
                 if new_activity.sport_type in ["Hike", "Walk"]:
                     match_activity_to_route(new_activity.id, session=session)
-                
+
                 synced_count += 1
 
         session.commit()
@@ -152,96 +156,96 @@ async def sync_activities(user_id: uuid.UUID, session: Session = Depends(get_ses
 
 @router.get("/activities")
 async def get_user_activities(
-    user_id: uuid.UUID, 
-    limit: int = 20, 
+    user_id: uuid.UUID,
+    limit: int = 20,
     only_matched: bool = True,
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
 ):
     """Fetch a user's activities from the local database."""
     stmt = (
         select(Activity)
         .where(Activity.user_id == user_id)
-        .where(Activity.is_ignored == False)
+        .where(Activity.is_ignored.is_(False))
     )
-    
+
     if only_matched:
-        stmt = stmt.where(Activity.canonical_route_id != None)
-        
+        stmt = stmt.where(Activity.canonical_route_id.is_not(None))
+
     stmt = stmt.order_by(Activity.start_date.desc()).limit(limit)
-    
+
     activities = session.exec(stmt).all()
-    
+
     result = []
     for act in activities:
         act_dict = act.dict()
         if "raw_polyline" in act_dict:
             del act_dict["raw_polyline"]
-            
+
         if act.canonical_route:
             act_dict["trail_name"] = act.canonical_route.name
         result.append(act_dict)
-        
+
     return result
 
 
 @router.get("/feed")
 async def get_social_feed(
-    user_id: uuid.UUID,
-    limit: int = 20,
-    session: Session = Depends(get_session)
+    user_id: uuid.UUID, limit: int = 20, session: Session = Depends(get_session)
 ):
     """Fetch a social feed for the user, including their own and friends' activities."""
     # 1. Get IDs of users being followed
-    friend_ids_stmt = select(Follow.followed_id).where(Follow.follower_id == user_id, Follow.status == "accepted")
+    friend_ids_stmt = select(Follow.followed_id).where(
+        Follow.follower_id == user_id, Follow.status == "accepted"
+    )
     friend_ids = session.exec(friend_ids_stmt).all()
-    
+
     # 2. Include the user's own ID
     relevant_user_ids = [user_id] + list(friend_ids)
-    
+
     # 3. Fetch ONLY matched hiking activities from these users.
     stmt = (
         select(Activity)
         .where(Activity.user_id.in_(relevant_user_ids))
-        .where(Activity.canonical_route_id != None)
-        .where(Activity.is_ignored == False)
+        .where(Activity.canonical_route_id.is_not(None))
+        .where(Activity.is_ignored.is_(False))
         .order_by(Activity.start_date.desc())
         .limit(limit)
     )
     activities = session.exec(stmt).all()
-    
+
     result = []
     for act in activities:
         act_dict = act.dict()
         if "raw_polyline" in act_dict:
             del act_dict["raw_polyline"]
-            
+
         act_dict["user_name"] = act.user.display_name
         if act.canonical_route:
             act_dict["trail_name"] = act.canonical_route.name
             # Ensure rating is on a 0-10 scale
             raw_rating = act.canonical_route.rating_score
-            act_dict["global_rating"] = raw_rating / 100.0 if raw_rating > 100 else raw_rating
-            
+            act_dict["global_rating"] = (
+                raw_rating / 100.0 if raw_rating > 100 else raw_rating
+            )
+
         result.append(act_dict)
-        
+
     return result
 
 
 @router.post("/promote")
 def promote_activity_to_route(
-    activity_id: uuid.UUID, 
-    route_id: int, 
-    session: Session = Depends(get_session)
+    activity_id: uuid.UUID, route_id: int, session: Session = Depends(get_session)
 ):
     """Manually match an activity to a canonical route."""
     activity = session.get(Activity, activity_id)
     if not activity:
         raise HTTPException(status_code=404, detail="Activity not found")
-    
+
     route = session.get(CanonicalRoute, route_id)
     if not route:
         raise HTTPException(status_code=404, detail="Trail not found")
-        
+
     activity.canonical_route_id = route_id
     session.add(activity)
     session.commit()
@@ -273,12 +277,14 @@ def restore_activity(activity_id: uuid.UUID, session: Session = Depends(get_sess
 
 
 @router.get("/ignored")
-async def get_ignored_activities(user_id: uuid.UUID, session: Session = Depends(get_session)):
+async def get_ignored_activities(
+    user_id: uuid.UUID, session: Session = Depends(get_session)
+):
     """Fetch all ignored activities for a user."""
     stmt = (
         select(Activity)
         .where(Activity.user_id == user_id)
-        .where(Activity.is_ignored == True)
+        .where(Activity.is_ignored.is_(True))
         .order_by(Activity.start_date.desc())
     )
     activities = session.exec(stmt).all()
@@ -324,7 +330,9 @@ async def webhook_listener(request: Request, session: Session = Depends(get_sess
         if strava_acc and strava_acc.access_token:
             user = strava_acc.user
             try:
-                act_data = strava_service.get_activity(activity_id, strava_acc.access_token)
+                act_data = strava_service.get_activity(
+                    activity_id, strava_acc.access_token
+                )
                 stream_data = get_activity_stream(activity_id, strava_acc.access_token)
                 wkt = stream_to_wkt(stream_data)
 
@@ -332,7 +340,9 @@ async def webhook_listener(request: Request, session: Session = Depends(get_sess
                     start_date = None
                     if act_data.get("start_date"):
                         try:
-                            start_date = datetime.fromisoformat(act_data.get("start_date").replace('Z', '+00:00'))
+                            start_date = datetime.fromisoformat(
+                                act_data.get("start_date").replace("Z", "+00:00")
+                            )
                         except Exception:
                             pass
 
@@ -347,14 +357,14 @@ async def webhook_listener(request: Request, session: Session = Depends(get_sess
                         start_date=start_date,
                         notes=act_data.get("description"),
                         reactions_count=act_data.get("kudos_count", 0),
-                        comments_count=act_data.get("comment_count", 0)
+                        comments_count=act_data.get("comment_count", 0),
                     )
                     session.add(new_activity)
                     session.flush()
 
                     if new_activity.sport_type in ["Hike", "Walk"]:
                         match_activity_to_route(new_activity.id, session=session)
-                        
+
                     session.commit()
             except Exception as e:
                 logger.error(f"Error processing webhook activity: {e}")

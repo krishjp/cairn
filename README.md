@@ -1,6 +1,6 @@
 # Cairn: Trail Rankings
 
-Cairn is a social platform for hikers to track Strava activities and rank trails using a pairwise comparison engine (Bradley-Terry model). It bridges the gap between variable GPS tracks and static "Canonical Routes" to create definitive leaderboards within social circles.
+Cairn is a social platform for hikers to track Strava activities and rank trails using a Bayesian ranking engine (TrueSkill model). It bridges the gap between variable GPS tracks and static "Canonical Routes" to create definitive leaderboards within social circles.
 
 ## Technical Stack
 
@@ -54,11 +54,17 @@ Cairn automatically identifies which trail a user hiked by comparing their raw G
 *   **Trail Promotion:** For activities with <80% match, users can "promote" their track to a new Canonical Route. The system automatically cleans the track by trimming trailhead noise (default 50m) and simplifying the geometry.
 
 ### 2. Ranking Engine
-Trails are ranked using a Bradley-Terry model implemented via an Elo-based update system, now normalized to a **1.00 to 10.00 scale**. Every comparison updates two distinct streams:
+Trails are ranked using a **TrueSkill Bayesian model** that handles sparse 1v1 comparisons with high efficiency. The system tracks both **Quality ($\mu$)** and **Uncertainty ($\sigma$)** for every trail-user pair.
 
-*   **Personal Ranking:** Private to the user, reflecting their individual preferences.
-*   **Friends Ranking:** Aggregated scores from people the user follows.
-*   **Global Ranking:** A community-wide consensus score stored on the canonical route.
+*   **Pairwise Comparisons:** Users calibrate their list by comparing two trails. The system uses **Active Selection** to suggest pairs with the highest "Match Quality" (similar $\mu$, high $\sigma$) to drive convergence as fast as possible.
+*   **Dynamic Percentile Bucketing:** Trails are automatically categorized into tiers based on their percentile rank:
+    *   **Peak**: Top 25%
+    *   **Another Hike**: Middle 50%
+    *   **A Hill**: Bottom 25%
+*   **Ranking Streams:** 
+    *   **Personal Ranking:** Your individual Bayesian hierarchy.
+    *   **Friends Ranking:** Social consensus based on friends' $\mu$ scores.
+    *   **Global Ranking:** Global community consensus score.
 
 #### Calibration Phase
 New users enter a **Calibration Phase** where their personal rankings are only visible once they have ranked at least **5 trails**. This ensures that leaderboards reflect a meaningful baseline of preferences before scores are revealed.
