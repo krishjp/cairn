@@ -5,6 +5,7 @@ from app.core.db import get_session
 from app.models.models import (
     CanonicalRoute,
     Activity,
+    User,
     UserRouteRating,
     Follow,
     Comparison,
@@ -38,7 +39,7 @@ def get_personal_leaderboard(
     Get the user's personal ranking of trails.
     Scores are normalized 1-10 but only 'shown' if 5+ hikes are ranked.
     """
-    # 1. Get all unmatched activities for this user (The Staging Area)
+    # Get all unmatched activities for this user (The Staging Area)
     unmatched_stmt = (
         select(Activity)
         .where(
@@ -50,7 +51,7 @@ def get_personal_leaderboard(
     )
     unmatched_activities = session.exec(unmatched_stmt).all()
 
-    # 2. Get matched trail IDs
+    # Get matched trail IDs
     matched_routes_stmt = (
         select(Activity.canonical_route_id)
         .where(Activity.user_id == user_id, Activity.canonical_route_id.is_not(None))
@@ -58,7 +59,7 @@ def get_personal_leaderboard(
     )
     matched_route_ids = session.exec(matched_routes_stmt).all()
 
-    # 3. Handle case where no matched routes exist (but may have unmatched ones)
+    # Handle case where no matched routes exist (but may have unmatched ones)
     if not matched_route_ids:
         return {
             "routes": [],
@@ -68,14 +69,14 @@ def get_personal_leaderboard(
             "show_scores": False,
         }
 
-    # 4. Check for calibration status
+    # Check for calibration status
     ranked_count_stmt = select(func.count(UserRouteRating.canonical_route_id)).where(
         UserRouteRating.user_id == user_id
     )
     ranked_count = session.exec(ranked_count_stmt).one()
     show_scores = ranked_count >= 5
 
-    # 5. Fetch ALL ranked trails for this user to calculate accurate percentiles
+    # Fetch ALL ranked trails for this user to calculate accurate percentiles
     statement = (
         select(CanonicalRoute, UserRouteRating.rating_score)
         .outerjoin(
@@ -118,6 +119,7 @@ def get_personal_leaderboard(
                 "distance_meters": latest_activity.distance if latest_activity else 0,
                 "moving_time": latest_activity.moving_time if latest_activity else 0,
                 "start_date": latest_activity.start_date if latest_activity else None,
+                "notes": latest_activity.notes if latest_activity else None,
             }
         )
 
@@ -140,6 +142,7 @@ def get_personal_leaderboard(
                 "distance_meters": latest_activity.distance if latest_activity else 0,
                 "moving_time": latest_activity.moving_time if latest_activity else 0,
                 "start_date": latest_activity.start_date if latest_activity else None,
+                "notes": latest_activity.notes if latest_activity else None,
             }
         )
 
@@ -163,7 +166,7 @@ def get_next_pair(
     - Always compares pinned hike (A) against ALREADY RANKED hikes (B).
     - Returns status 'FIRST' if no ranked hikes exist yet.
     """
-    # 1. Get the pinned route
+    # Get the pinned route
     if not fixed_route_id:
         # If no fixed ID, pick a random unranked hike as Hike A
         unranked_stmt = (
@@ -189,7 +192,7 @@ def get_next_pair(
     if not route_a:
         raise HTTPException(status_code=404, detail="Pinned route not found.")
 
-    # 2. Get already ranked routes for Hike B (including their Mu/Sigma)
+    # Get already ranked routes for Hike B (including their Mu/Sigma)
     ranked_stmt = (
         select(CanonicalRoute, UserRouteRating)
         .join(UserRouteRating)
@@ -204,7 +207,7 @@ def get_next_pair(
             "route_a": route_a.model_dump(exclude={"geometry"}),
         }
 
-    # 3. Get rating for Hike A to use as base for match quality
+    # Get rating for Hike A to use as base for match quality
     rating_a = session.get(UserRouteRating, (user_id, fixed_route_id))
     if not rating_a:
         # If not initialized yet, we can't do match quality, just return first available
@@ -213,7 +216,7 @@ def get_next_pair(
     else:
         rating_a_mu, rating_a_sigma = rating_a.rating_mu, rating_a.rating_sigma
 
-    # 4. Filter for uncompared pairs and calculate quality
+    # Filter for uncompared pairs and calculate quality
     existing_comps = session.exec(
         select(Comparison).where(Comparison.user_id == user_id)
     ).all()
@@ -236,7 +239,7 @@ def get_next_pair(
             detail="Pinned hike has been compared against all ranked trails.",
         )
 
-    # 5. Sort by match quality (descending) and pick the best one
+    # Sort by match quality (descending) and pick the best one
     candidates.sort(key=lambda x: x[0], reverse=True)
     best_match_quality, best_b = candidates[0]
 
@@ -285,6 +288,7 @@ def initialize_with_bucket(
         rating_score=prior["score"],
         rating_mu=prior["mu"],
         rating_sigma=prior["sigma"],
+        last_ranked_at=datetime.utcnow(),
     )
     session.add(rating)
     session.commit()
@@ -301,13 +305,13 @@ def post_vote(
     """
     Records a comparison and updates scores using TrueSkill Bayesian logic.
     """
-    # 1. Record the comparison for history
+    # Record the comparison for history
     comparison = Comparison(
         user_id=user_id, winner_route_id=winner_id, loser_route_id=loser_id
     )
     session.add(comparison)
 
-    # 2. Fetch the ratings for both routes
+    # Fetch the ratings for both routes
     winner_rating = session.get(UserRouteRating, (user_id, winner_id))
     loser_rating = session.get(UserRouteRating, (user_id, loser_id))
 
@@ -317,7 +321,7 @@ def post_vote(
             detail="One of the routes is not yet initialized for this user.",
         )
 
-    # 3. Apply TrueSkill Update
+    # Apply TrueSkill Update
     (new_w_mu, new_w_sigma), (new_l_mu, new_l_sigma) = update_rating(
         winner_rating.rating_mu,
         winner_rating.rating_sigma,
@@ -325,14 +329,16 @@ def post_vote(
         loser_rating.rating_sigma,
     )
 
-    # 4. Update the records
+    # Update the records
     winner_rating.rating_mu = new_w_mu
     winner_rating.rating_sigma = new_w_sigma
     winner_rating.rating_score = new_w_mu  # Display score is the Mean
+    winner_rating.last_ranked_at = datetime.utcnow()
 
     loser_rating.rating_mu = new_l_mu
     loser_rating.rating_sigma = new_l_sigma
     loser_rating.rating_score = new_l_mu  # Display score is the Mean
+    loser_rating.last_ranked_at = datetime.utcnow()
 
     session.add(winner_rating)
     session.add(loser_rating)
@@ -353,7 +359,7 @@ def get_friends_leaderboard(
     """
     Get a leaderboard showing trails ranked by your friends.
     """
-    # 1. Get friends
+    # Get friends
     friends_stmt = select(Follow.followed_id).where(
         Follow.follower_id == user_id, Follow.status == "accepted"
     )
@@ -362,7 +368,7 @@ def get_friends_leaderboard(
     if not friend_ids:
         return []
 
-    # 2. Get average scores from friends
+    # Get average scores from friends
     stmt = (
         select(
             CanonicalRoute,
@@ -384,3 +390,110 @@ def get_friends_leaderboard(
         }
         for route, avg_score, friend_count in results
     ]
+
+
+@router.get("/route/{route_id}")
+def get_route_detail(
+    route_id: int,
+    user_id: Optional[uuid.UUID] = Query(None),
+    session: Session = Depends(get_session),
+):
+    """
+    Returns detailed info about a specific route, including:
+    - Metadata (desc, image)
+    - User's personal rating
+    - Friends' average rating
+    - Global average rating
+    - Reviews/Comparisons from friends or global
+    """
+    route = session.get(CanonicalRoute, route_id)
+    if not route:
+        raise HTTPException(status_code=404, detail="Route not found")
+
+    # Personal Rating
+    personal = None
+    if user_id:
+        personal = session.get(UserRouteRating, (user_id, route_id))
+
+    # Friend Circle Rating
+    friend_ids = []
+    if user_id:
+        friend_ids_stmt = select(Follow.followed_id).where(
+            Follow.follower_id == user_id, Follow.status == "accepted"
+        )
+        friend_ids = session.exec(friend_ids_stmt).all()
+
+    circle_avg = 0
+    circle_count = 0
+    if friend_ids:
+        circle_stmt = select(
+            func.avg(UserRouteRating.rating_score),
+            func.count(UserRouteRating.user_id),
+        ).where(
+            UserRouteRating.canonical_route_id == route_id,
+            UserRouteRating.user_id.in_(friend_ids),
+        )
+        circle_avg, circle_count = session.exec(circle_stmt).one()
+
+    # Reviews (using notes from Activities)
+    relevant_user_ids = [user_id] + list(friend_ids) if user_id else list(friend_ids)
+    
+    friend_reviews = (
+        select(Activity, User.display_name, UserRouteRating.rating_score)
+        .join(User, User.id == Activity.user_id)
+        .outerjoin(
+            UserRouteRating,
+            (UserRouteRating.user_id == Activity.user_id)
+            & (UserRouteRating.canonical_route_id == Activity.canonical_route_id),
+        )
+        .where(
+            Activity.canonical_route_id == route_id,
+            Activity.user_id.in_(relevant_user_ids),
+            Activity.notes.is_not(None),
+        )
+        .order_by(Activity.start_date.desc())
+        .limit(10)
+    )
+    friends_list = [
+        {
+            "user": name,
+            "text": act.notes,
+            "date": act.start_date,
+            "rating": round(score, 2) if score else None,
+        }
+        for act, name, score in session.exec(friend_reviews).all()
+    ]
+
+    global_reviews = (
+        select(Activity, User.display_name, UserRouteRating.rating_score)
+        .join(User, User.id == Activity.user_id)
+        .outerjoin(
+            UserRouteRating,
+            (UserRouteRating.user_id == Activity.user_id)
+            & (UserRouteRating.canonical_route_id == Activity.canonical_route_id),
+        )
+        .where(
+            Activity.canonical_route_id == route_id,
+            Activity.notes.is_not(None),
+        )
+        .order_by(Activity.start_date.desc())
+        .limit(10)
+    )
+    global_list = [
+        {
+            "user": name,
+            "text": act.notes,
+            "date": act.start_date,
+            "rating": round(score, 2) if score else None,
+        }
+        for act, name, score in session.exec(global_reviews).all()
+    ]
+
+    return {
+        **route.model_dump(exclude={"geometry"}),
+        "personal_rating": round(personal.rating_score, 2) if personal else None,
+        "circle_avg": round(circle_avg, 2) if circle_avg else None,
+        "circle_count": circle_count,
+        "global_rating": round(route.rating_score, 2),
+        "reviews": {"friends": friends_list, "global": global_list},
+    }

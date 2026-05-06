@@ -70,7 +70,14 @@ Trails are ranked using a **TrueSkill Bayesian model** that handles sparse 1v1 c
 New users enter a **Calibration Phase** where their personal rankings are only visible once they have ranked at least **5 trails**. This ensures that leaderboards reflect a meaningful baseline of preferences before scores are revealed.
 
 ### 3. Social Feed & Engagement
-The **Mountain Circle** feed aggregates hiking activities from the user and their followed friends, matched against Canonical Routes.
+The **Mountain Circle** feed aggregates hiking activities from the user and their followed friends, ordered by **recency of ranking/calibration**.
+
+*   **Ranking Events:** Unlike traditional feeds, Cairn prioritizes trails that have recently been calibrated, showing how different users in the circle value the same trail differently.
+*   **Hike Detail Page:** A minimalist, dictionary-style overview for every trail. Accessible from search or the feed, it provides:
+    *   Unified view of Personal vs. Circle vs. Global rankings.
+    *   High-quality minimalist trail imagery.
+    *   A togglable review system for mountain circle vs. global feedback.
+    *   Technical metadata (distance, elevation, description).
 *   **Rich Metrics:** Captures Strava descriptions, kudos (reactions), and comments directly into the feed.
 *   **Unified Aesthetic:** Both the feed and personal rankings share a premium "Dictionary-Style" card design with defined borders.
 *   **Real-Time Sync:** Dashboard refreshes automatically when returning from calibration sessions.

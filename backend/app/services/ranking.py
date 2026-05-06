@@ -27,7 +27,7 @@ def record_comparison(session: Session, user_id: str, winner_id: int, loser_id: 
     )
     session.add(comparison)
 
-    # 1. Update Global ratings (CanonicalRoute)
+    # Update Global ratings (CanonicalRoute)
     (new_gw_mu, new_gw_sigma), (new_gl_mu, new_gl_sigma) = update_rating(
         winner.rating_mu, winner.rating_sigma, loser.rating_mu, loser.rating_sigma
     )
@@ -37,7 +37,7 @@ def record_comparison(session: Session, user_id: str, winner_id: int, loser_id: 
     loser.rating_mu, loser.rating_sigma = new_gl_mu, new_gl_sigma
     loser.rating_score = new_gl_mu
 
-    # 2. Update User-specific ratings
+    # Update User-specific ratings
     user_winner_rating = session.get(UserRouteRating, (user_id, winner_id))
     if not user_winner_rating:
         user_winner_rating = UserRouteRating(

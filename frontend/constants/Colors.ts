@@ -8,5 +8,7 @@ export const Colors = {
   secondary: '#8D6E63',  // Earth Brown
   accent: '#E8F5E9',     // Morning Dew (Very pale green/white)
   border: '#2C362C',     // Dark Fern
+  cardBackground: '#161B16', // Same as surface
+  cardBorder: '#2C362C',     // Same as border
   error: '#E57373',
 };

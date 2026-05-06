@@ -6,7 +6,7 @@ from app.core.config import settings
 from app.services import strava as strava_service
 from app.services.strava import get_activity_stream, stream_to_wkt
 from app.services.matching import match_activity_to_route
-from app.models.models import User, Activity, StravaAccount, Follow, CanonicalRoute
+from app.models.models import User, Activity, StravaAccount, Follow, CanonicalRoute, UserRouteRating
 import uuid
 import logging
 from datetime import datetime
@@ -193,22 +193,30 @@ async def get_social_feed(
     user_id: uuid.UUID, limit: int = 20, session: Session = Depends(get_session)
 ):
     """Fetch a social feed for the user, including their own and friends' activities."""
-    # 1. Get IDs of users being followed
+    # Get IDs of users being followed
     friend_ids_stmt = select(Follow.followed_id).where(
         Follow.follower_id == user_id, Follow.status == "accepted"
     )
     friend_ids = session.exec(friend_ids_stmt).all()
 
-    # 2. Include the user's own ID
+    # Include the user's own ID
     relevant_user_ids = [user_id] + list(friend_ids)
 
-    # 3. Fetch ONLY matched hiking activities from these users.
+    # Fetch matched hiking activities, ordered by when they were LAST RANKED, then by start date.
     stmt = (
         select(Activity)
+        .outerjoin(
+            UserRouteRating,
+            (UserRouteRating.canonical_route_id == Activity.canonical_route_id)
+            & (UserRouteRating.user_id == Activity.user_id),
+        )
         .where(Activity.user_id.in_(relevant_user_ids))
-        .where(Activity.canonical_route_id.is_not(None))
         .where(Activity.is_ignored.is_(False))
-        .order_by(Activity.start_date.desc())
+        .where(Activity.canonical_route_id.is_not(None))
+        .order_by(
+            UserRouteRating.last_ranked_at.desc().nulls_last(), 
+            Activity.start_date.desc()
+        )
         .limit(limit)
     )
     activities = session.exec(stmt).all()

@@ -3,7 +3,7 @@ from datetime import datetime
 import uuid
 from sqlmodel import SQLModel, Field, Relationship, Column
 from geoalchemy2 import Geometry
-from sqlalchemy import BigInteger, Float, DateTime, Text
+from sqlalchemy import BigInteger, Float, DateTime, Text, JSON
 
 
 class UserRouteRating(SQLModel, table=True):
@@ -13,6 +13,10 @@ class UserRouteRating(SQLModel, table=True):
     rating_score: float = Field(default=5.0, sa_column=Column(Float, nullable=False))
     rating_mu: float = Field(default=5.0, sa_column=Column(Float, nullable=False))
     rating_sigma: float = Field(default=1.5, sa_column=Column(Float, nullable=False))
+    last_ranked_at: datetime = Field(
+        default_factory=datetime.utcnow,
+        sa_column=Column(DateTime, default=datetime.utcnow, nullable=False),
+    )
 
     user: "User" = Relationship(back_populates="route_ratings")
     canonical_route: "CanonicalRoute" = Relationship(back_populates="user_ratings")
@@ -92,6 +96,8 @@ class CanonicalRoute(SQLModel, table=True):
     rating_score: float = Field(default=5.0, sa_column=Column(Float, nullable=False))
     rating_mu: float = Field(default=5.0, sa_column=Column(Float, nullable=False))
     rating_sigma: float = Field(default=1.5, sa_column=Column(Float, nullable=False))
+    description: Optional[str] = Field(default=None, sa_column=Column(Text, nullable=True))
+    images: Optional[list] = Field(default=None, sa_column=Column(JSON, nullable=True))
 
     activities: List["Activity"] = Relationship(back_populates="canonical_route")
     user_ratings: List["UserRouteRating"] = Relationship(

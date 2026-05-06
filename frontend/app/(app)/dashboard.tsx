@@ -47,6 +47,7 @@ export default function Dashboard() {
   );
 
   const fetchActivities = async () => {
+    if (!user?.id) return;
     setIsLoading(true);
     try {
       const response = await fetch(
@@ -65,6 +66,7 @@ export default function Dashboard() {
   };
 
   const fetchUserRankings = async () => {
+    if (!user?.id) return;
     setIsLoading(true);
     try {
       const response = await fetch(
@@ -223,9 +225,13 @@ export default function Dashboard() {
       isStaging && styles.stagingCard
     ]}>
       <View style={styles.cardHeader}>
-        <View style={styles.trailTitleRow}>
+        <TouchableOpacity 
+          style={styles.trailTitleRow} 
+          onPress={() => item.canonical_route_id && router.push(`/route/${item.canonical_route_id}`)}
+        >
           <Text style={styles.trailNameText}>{item.trail_name || item.name}</Text>
-        </View>
+          <Ionicons name="chevron-forward" size={14} color={Colors.textSecondary} style={{ marginLeft: 4 }} />
+        </TouchableOpacity>
         <View style={[styles.ratingBadge, isStaging && { borderColor: Colors.border }]}>
           <Text style={[styles.ratingValueText, isStaging && { color: Colors.textSecondary }]}>
             {isStaging
@@ -417,16 +423,20 @@ export default function Dashboard() {
                 <TouchableOpacity
                   key={result.id}
                   style={styles.searchResultItem}
-                  onPress={() => toggleBookmark(result.id)}
+                  onPress={() => {
+                    setSearchQuery('');
+                    setSearchResults([]);
+                    router.push(`/route/${result.id}`);
+                  }}
                 >
                   <View style={{ flex: 1 }}>
                     <Text style={styles.resultName}>{result.name}</Text>
                     <Text style={styles.resultRating}>{(result.rating || 0).toFixed(2)} rating</Text>
                   </View>
                   <Ionicons
-                    name={bookmarks.includes(result.id) ? "bookmark" : "bookmark-outline"}
+                    name="chevron-forward"
                     size={20}
-                    color={bookmarks.includes(result.id) ? Colors.primary : Colors.border}
+                    color={Colors.border}
                   />
                 </TouchableOpacity>
               ))}

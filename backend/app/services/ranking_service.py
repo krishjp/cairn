@@ -31,21 +31,21 @@ def update_rating(
     Updates the ratings for a winner and a loser using TrueSkill 1v1 formulas.
     Returns: ((new_winner_mu, new_winner_sigma), (new_loser_mu, new_loser_sigma))
     """
-    # 1. Calculate the variance sum
+    # Calculate the variance sum
     c_squared = winner_sigma**2 + loser_sigma**2 + 2 * (settings.RANKING_BETA**2)
     c = math.sqrt(c_squared)
 
-    # 2. Difference between means
+    # Difference between means
     mu_diff = winner_mu - loser_mu
 
-    # 3. Calculate corrections
+    # Calculate corrections
     v, w = calculate_v_w(mu_diff / c, 0.0)
 
-    # 4. Update Means
+    # Update Means
     new_winner_mu = winner_mu + (winner_sigma**2 / c) * v
     new_loser_mu = loser_mu - (loser_sigma**2 / c) * v
 
-    # 5. Update Sigmas (Uncertainty)
+    # Update Sigmas (Uncertainty)
     # Apply TAU to prevent sigma from shrinking to absolute zero
     new_winner_sigma = math.sqrt(
         winner_sigma**2 * (1 - (winner_sigma**2 / c_squared) * w)

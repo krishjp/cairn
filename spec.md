@@ -14,10 +14,10 @@ A social platform for hikers to connect, track activity via Strava or custom har
 
 ### A. The Staging Area (Activity Lifecycle)
 Raw activities from Strava or hardware enter a "Staging Area" before appearing in the social circle.
-1. **Unmatched Activity**: Raw GPS track without a canonical association.
-2. **Promotion Modal**: Dictionary-style search interface where users select the correct trail from the database.
-3. **Manual Matching**: User confirms the link between GPS track and `Canonical Route`.
-4. **Ranking Prompt**: Once matched, the user is prompted to rank the trail against their previous hikes.
+- **Unmatched Activity**: Raw GPS track without a canonical association.
+- **Promotion Modal**: Dictionary-style search interface where users select the correct trail from the database.
+- **Manual Matching**: User confirms the link between GPS track and `Canonical Route`.
+- **Ranking Prompt**: Once matched, the user is prompted to rank the trail against their previous hikes.
 
 ### B. The Canonical Route Engine (Source of Truth)
 Unlike restaurants, hikes are lines, not points.
@@ -33,13 +33,15 @@ Unlike restaurants, hikes are lines, not points.
 - **Metric:** Human-readable **1.00 - 10.00 scale**.
 - **Calibration Phase**: Users must rank **5 trails** before their scores are visible to the public feed.
 - **Workflow:**
-    1. User promotes an activity to a Canonical Route.
-    2. UI presents: "Which was better: [New Hike] or [Previous Hike]?"
-    3. Database updates $\mu$ and $\sigma$ values.
+    - User promotes an activity to a Canonical Route.
+    - UI presents: "Which was better: [New Hike] or [Previous Hike]?"
+    - Database updates $\mu$ and $\sigma$ values.
 
-### D. Activity Management
-- **Ignore**: Users can hide non-hike activities (commutes, walks).
-- **Restore**: Ignored activities can be un-hidden via the Settings menu.
+### E. Immersive Trail Discovery
+- **Route Detail Page**: Rich dictionary-inspired view for every trail.
+- **Dynamic Imagery**: Automated photo galleries sourced from Wikimedia Commons (Public API).
+- **Consensus Rankings**: Displays Personal, Mountain Circle Average, and Global Consensus scores.
+- **Social Proof**: Toggleable reviews between friends and the global community.
 
 ## 4. Database Schema (Current)
 ```sql
@@ -53,7 +55,11 @@ CREATE TABLE canonical_routes (
     osm_id BIGINT UNIQUE,
     name TEXT,
     geometry GEOMETRY(LineString, 4326),
-    rating_score FLOAT DEFAULT 500 -- Internal Elo
+    description TEXT,
+    images JSONB, -- Array of public photo URLs
+    rating_score FLOAT, -- Unified 1.0-10.0 score
+    rating_mu FLOAT, -- Bayesian Mean
+    rating_sigma FLOAT -- Bayesian Uncertainty
 );
 
 CREATE TABLE activities (
@@ -62,33 +68,40 @@ CREATE TABLE activities (
     strava_activity_id BIGINT,
     raw_polyline GEOMETRY(LineString, 4326),
     canonical_route_id INT REFERENCES canonical_routes(id),
-    is_ranked BOOLEAN DEFAULT FALSE,
     is_ignored BOOLEAN DEFAULT FALSE,
-    personal_score FLOAT
+    match_confidence FLOAT
+);
+
+CREATE TABLE user_route_ratings (
+    user_id UUID,
+    canonical_route_id INT,
+    rating_score FLOAT,
+    last_ranked_at TIMESTAMP DEFAULT now(),
+    PRIMARY KEY (user_id, canonical_route_id)
 );
 ```
 
 ## 5. Development Roadmap
 
-### Phase 1: Ingestion Infrastructure
+### Phase 1: Ingestion Infrastructure (Complete)
 - [x] Set up FastAPI project structure with PostgreSQL/PostGIS connection.
 - [x] Implement Strava OAuth2 flow and Webhook validation.
 - [x] Create utility to convert Strava Polylines to PostGIS LineStrings.
 
-### Phase 2: Geometry Matching & Seeding
+### Phase 2: Geometry Matching & Seeding (Complete)
 - [x] Build script to seed `canonical_routes` from OSM Overpass API.
-- [x] Implement Map Matching logic using `ST_Transform` (3857) for precise overlap calculation.
-- [x] Centralize Park constants and bounding boxes.
+- [x] Implement Map Matching logic using overlap calculation.
 
-### Phase 3: The Staging Area & Matching UI
+### Phase 3: The Staging Area & Matching UI (Complete)
 - [x] Build "My Rankings" staging area logic.
 - [x] Implement "Promote to Trail" search and manual matching endpoint.
-- [x] Add "Hide/Ignore" functionality for clean activity feeds.
-- [x] Resolve TypeScript focus/styling conflicts for premium web UI.
+*   [x] Add "Hide/Ignore" functionality for clean activity feeds.
 
-### Phase 4: Ranking Refinement
+### Phase 4: Ranking & Social Discovery (Active)
 - [x] Implement TrueSkill Bayesian engine with $\mu$ and $\sigma$ updates.
-- [x] Build Active Match Selection logic based on match quality.
 - [x] Implement Dynamic Percentile Bucketing (25/50/25).
+- [x] Build "Recently Ranked" Social Feed with outer-join ordering.
+- [x] Implement Immersive Trail Detail page with Banner Overlap design.
+- [x] Integrate Wikimedia Commons API for automated photo galleries.
 - [ ] Build global leaderboard visualization with Mountain Circle graph.
 - [ ] Add Activity Detail view with PostGIS-rendered maps.
