@@ -1,7 +1,7 @@
 # Project "Cairn" (Beli for Hikes) - Technical Specification
 
 ## 1. Project Vision
-A social platform for hikers to connect, track activity via Strava or custom hardware, and rank trails using a pairwise comparison engine (Bradley-Terry model). The system must bridge the gap between variable GPS tracks and static "Canonical Routes" to create a definitive leaderboard of trails within a social circle.
+A social platform for hikers to connect, track activity via Strava or custom hardware, and rank trails using a pairwise comparison engine (Bradley-Terry model). The system bridges the gap between variable GPS tracks and static "Canonical Routes" using a **Staging Area** workflow where users manually verify and promote activities to definitive trail matches.
 
 ## 2. Technical Stack
 - **Frontend:** React Native (Expo) for cross-platform mobile access and Bluetooth/Map integration.
@@ -12,36 +12,37 @@ A social platform for hikers to connect, track activity via Strava or custom har
 
 ## 3. Core Modules & Logic
 
-### A. The Canonical Route Engine (Source of Truth)
+### A. The Staging Area (Activity Lifecycle)
+Raw activities from Strava or hardware enter a "Staging Area" before appearing in the social circle.
+1. **Unmatched Activity**: Raw GPS track without a canonical association.
+2. **Promotion Modal**: Dictionary-style search interface where users select the correct trail from the database.
+3. **Manual Matching**: User confirms the link between GPS track and `Canonical Route`.
+4. **Ranking Prompt**: Once matched, the user is prompted to rank the trail against their previous hikes.
+
+### B. The Canonical Route Engine (Source of Truth)
 Unlike restaurants, hikes are lines, not points.
 - **Database Schema:** `canonical_routes` table with `geometry` column (GEOMETRY type).
 - **Seeding:** Use Overpass API to pull `route=hiking` relations from OSM.
-- **Matching Logic:** Implement a "Map Matching" service.
-    - **Input:** Raw Strava Polyline.
-    - **Process:** Snap GPS points to the nearest OSM nodes.
-    - **Metric:** If overlap > 80% with a Canonical Route, tag activity as that route.
-    - **Edge Case:** If overlap < 80%, flag as "Potential New Route" for user verification.
+- **Auto-Matching (Heuristic):** The system attempts to suggest a match based on geospatial overlap (>80%), but the **User Match** is the final authority.
 
-### B. The Ranking Engine (The "Beli" Logic)
-- **Algorithm:** Bradley-Terry Model (implemented via `statsmodels` or custom Elo-based logic).
+### C. The Ranking Engine (The "Beli" Logic)
+- **Algorithm:** pairwise comparison logic (Bradley-Terry implementation).
+- **Status:** **[UNDER REVISION]** Current score distributions are unsatisfactory. The algorithm will be revisited to improve normalization and handle edge cases in trail difficulty.
+- **Metric:** Human-readable **1.00 - 10.00 scale**.
+- **Calibration Phase**: Users must rank **5 trails** before their scores are visible to the public feed.
 - **Workflow:**
-    1. User completes Hike A.
-    2. System identifies Hike A via Map Matching.
-    3. UI presents: "Which was better: [Hike A] or [Previous Hike B]?"
-    4. Database updates the `global_rank` and `user_specific_rank` based on the win/loss.
+    1. User promotes an activity to a Canonical Route.
+    2. UI presents: "Which was better: [New Hike] or [Previous Hike]?"
+    3. Database updates rankings.
 
-### C. Strava Ingestion Pipeline
-- **Webhook Listener:** Receive `activity_id` from Strava.
-- **Fetcher:** Request full `stream` data (lat/lng, time, altitude, heart_rate).
-- **Processor:** Decode Google Polylines into PostGIS LineStrings.
-- **Media Ingestion (Future):** Pull activity photos via the Strava API and associate them with the `Activity` record.
-- **Hikebox Integration (Future):** Support for manual polyline uploads from custom ESP32 "hikebox" hardware. Data will be normalized to the internal "Activity" format to bypass Strava dependency for non-Strava users.
+### D. Activity Management
+- **Ignore**: Users can hide non-hike activities (commutes, walks).
+- **Restore**: Ignored activities can be un-hidden via the Settings menu.
 
-## 4. Database Schema (Draft)
+## 4. Database Schema (Current)
 ```sql
 CREATE TABLE users (
     id UUID PRIMARY KEY,
-    strava_id INT UNIQUE,
     display_name TEXT
 );
 
@@ -50,7 +51,7 @@ CREATE TABLE canonical_routes (
     osm_id BIGINT UNIQUE,
     name TEXT,
     geometry GEOMETRY(LineString, 4326),
-    difficulty_rating FLOAT
+    rating_score FLOAT DEFAULT 500 -- Internal Elo
 );
 
 CREATE TABLE activities (
@@ -59,15 +60,9 @@ CREATE TABLE activities (
     strava_activity_id BIGINT,
     raw_polyline GEOMETRY(LineString, 4326),
     canonical_route_id INT REFERENCES canonical_routes(id),
-    match_confidence FLOAT
-);
-
-CREATE TABLE comparisons (
-    id UUID PRIMARY KEY,
-    user_id UUID REFERENCES users(id),
-    winner_route_id INT REFERENCES canonical_routes(id),
-    loser_route_id INT REFERENCES canonical_routes(id),
-    timestamp TIMESTAMP DEFAULT NOW()
+    is_ranked BOOLEAN DEFAULT FALSE,
+    is_ignored BOOLEAN DEFAULT FALSE,
+    personal_score FLOAT
 );
 ```
 
@@ -80,19 +75,16 @@ CREATE TABLE comparisons (
 
 ### Phase 2: Geometry Matching & Seeding
 - [x] Build script to seed `canonical_routes` from OSM Overpass API.
-- [x] Implement the Map Matching logic using `ST_Transform` (3857) to determine activity-to-trail overlap with metric precision.
+- [x] Implement Map Matching logic using `ST_Transform` (3857) for precise overlap calculation.
 - [x] Centralize Park constants and bounding boxes.
 
-### Phase 3: The Ranking UI & Logic
-- [x] Initialized Expo (React Native) project with modern "Dark Forest" theme.
-- [x] Implemented editorial Splash screen and Home Dashboard.
-- [x] Completed Strava OAuth2 integration with AuthContext and platform-specific redirects.
-- [ ] Create the Bradley-Terry/Elo update function in the backend.
-- [ ] Design React Native "Pairwise Vote" swipe component.
-- [ ] Build "Leaderboard" view showing Global vs. Friend rankings.
+### Phase 3: The Staging Area & Matching UI
+- [x] Build "My Rankings" staging area logic.
+- [x] Implement "Promote to Trail" search and manual matching endpoint.
+- [x] Add "Hide/Ignore" functionality for clean activity feeds.
+- [x] Resolve TypeScript focus/styling conflicts for premium web UI.
 
-### Phase 4: "Add a Hike" Feature
-- [x] Build backend logic for users to "Promote" an unidentified GPS track to a Canonical Route.
-- [x] Implement geometry cleaning (high-precision trimming/simplification).
-- [x] Refactor User architecture to decouple from Strava for future "Hikebox" support.
-- [ ] Build UI for users to name and trigger promotion from the mobile app.
+### Phase 4: Ranking Refinement
+- [ ] Implement advanced Bradley-Terry weighting (distance/elevation influence).
+- [ ] Build global leaderboard visualization with Mountain Circle graph.
+- [ ] Add Activity Detail view with PostGIS-rendered maps.

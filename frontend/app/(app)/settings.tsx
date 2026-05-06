@@ -37,6 +37,42 @@ export default function Settings() {
     }
   };
 
+  const [ignoredActivities, setIgnoredActivities] = useState<any[]>([]);
+  const [isLoadingIgnored, setIsLoadingIgnored] = useState(false);
+
+  React.useEffect(() => {
+    fetchIgnored();
+  }, []);
+
+  const fetchIgnored = async () => {
+    if (!user?.id) return;
+    setIsLoadingIgnored(true);
+    try {
+      const response = await fetch(`${API_URL}/api/v1/strava/ignored?user_id=${user.id}`, {
+        headers: { 'ngrok-skip-browser-warning': 'true' }
+      });
+      const data = await response.json();
+      setIgnoredActivities(data || []);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsLoadingIgnored(false);
+    }
+  };
+
+  const handleRestore = async (activityId: string) => {
+    try {
+      await fetch(`${API_URL}/api/v1/strava/restore?activity_id=${activityId}`, {
+        method: 'POST',
+        headers: { 'ngrok-skip-browser-warning': 'true' }
+      });
+      fetchIgnored(); // Refresh list
+      Alert.alert("Restored", "Activity has been moved back to your staging area.");
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   const handleSignOut = () => {
     Alert.alert(
       "Sign Out",
@@ -92,6 +128,27 @@ export default function Settings() {
               <Ionicons name="chevron-forward" size={20} color={Colors.textSecondary} />
             )}
           </TouchableOpacity>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Hidden Activities</Text>
+          {isLoadingIgnored ? (
+            <ActivityIndicator color={Colors.primary} size="small" />
+          ) : ignoredActivities.length === 0 ? (
+            <Text style={styles.emptyText}>No hidden activities</Text>
+          ) : (
+            ignoredActivities.map(act => (
+              <View key={act.id} style={styles.ignoredItem}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.ignoredName}>{act.name}</Text>
+                  <Text style={styles.ignoredDate}>{new Date(act.start_date).toLocaleDateString()}</Text>
+                </View>
+                <TouchableOpacity onPress={() => handleRestore(act.id)} style={styles.restoreBtn}>
+                  <Text style={styles.restoreBtnText}>Restore</Text>
+                </TouchableOpacity>
+              </View>
+            ))
+          )}
         </View>
 
         <View style={styles.section}>
@@ -198,6 +255,42 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: Colors.textSecondary,
     marginTop: 2,
+  },
+  ignoredItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  ignoredName: {
+    fontSize: 16,
+    color: Colors.text,
+    fontWeight: '500',
+  },
+  ignoredDate: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    marginTop: 2,
+  },
+  restoreBtn: {
+    backgroundColor: Colors.surfaceSecondary,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: Colors.primary,
+  },
+  restoreBtnText: {
+    fontSize: 12,
+    color: Colors.primary,
+    fontWeight: '600',
+  },
+  emptyText: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+    fontStyle: 'italic',
+    textAlign: 'center',
+    paddingVertical: 10,
   },
   menuItem: {
     flexDirection: 'row',

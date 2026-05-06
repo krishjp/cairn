@@ -21,8 +21,17 @@ export default function Dashboard() {
   const scrollRef = useRef<ScrollView>(null);
   const [activities, setActivities] = useState<any[]>([]);
   const [userRankings, setUserRankings] = useState<any[]>([]);
+  const [unmatchedActivities, setUnmatchedActivities] = useState<any[]>([]);
   const [showScores, setShowScores] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  
+  // Matching Modal State
+  const [isMatchModalVisible, setIsMatchModalVisible] = useState(false);
+  const [matchingActivity, setMatchingActivity] = useState<any>(null);
+  const [matchSearchQuery, setMatchSearchQuery] = useState('');
+  const [matchSearchResults, setMatchSearchResults] = useState<any[]>([]);
+  const [isMatchSearching, setIsMatchSearching] = useState(false);
+  const [isPromoting, setIsPromoting] = useState(false);
 
   // Re-fetch data whenever the screen comes into focus
   useFocusEffect(
@@ -63,21 +72,34 @@ export default function Dashboard() {
         { headers: { 'ngrok-skip-browser-warning': 'true' } }
       );
       const data = await response.json();
-      if (data && data.routes) {
-        // Sort so unranked (is_ranked = false) are always at the top
-        const sorted = data.routes.sort((a, b) => {
-          if (a.is_ranked === b.is_ranked) return 0;
-          return a.is_ranked ? 1 : -1;
-        });
-        setUserRankings(sorted);
+      if (data) {
+        if (data.routes) {
+          // Sort so unranked (is_ranked = false) are always at the top
+          const sorted = data.routes.sort((a, b) => {
+            if (a.is_ranked === b.is_ranked) return 0;
+            return a.is_ranked ? 1 : -1;
+          });
+          setUserRankings(sorted);
+        } else {
+          setUserRankings([]);
+        }
+        
+        if (data.unmatched_activities) {
+          setUnmatchedActivities(data.unmatched_activities);
+        } else {
+          setUnmatchedActivities([]);
+        }
+        
         setShowScores(data.show_scores);
       } else {
         setUserRankings([]);
+        setUnmatchedActivities([]);
         setShowScores(false);
       }
     } catch (err) {
       console.error("Failed to fetch rankings:", err);
       setUserRankings([]);
+      setUnmatchedActivities([]);
       setShowScores(false);
     } finally {
       setIsLoading(false);
@@ -110,6 +132,77 @@ export default function Dashboard() {
     }
   };
 
+  const handleMatchSearch = async (text: string) => {
+    setMatchSearchQuery(text);
+    if (text.length > 2) {
+      try {
+        setIsMatchSearching(true);
+        const response = await fetch(
+          `${process.env.EXPO_PUBLIC_API_URL}/api/v1/routes/search?q=${text}`,
+          { headers: { 'ngrok-skip-browser-warning': 'true' } }
+        );
+        const data = await response.json();
+        if (Array.isArray(data)) {
+          setMatchSearchResults(data);
+        } else {
+          setMatchSearchResults([]);
+        }
+      } catch (err) {
+        console.error('Match search error:', err);
+        setMatchSearchResults([]);
+      } finally {
+        setIsMatchSearching(false);
+      }
+    } else {
+      setMatchSearchResults([]);
+    }
+  };
+
+  const promoteActivity = async (routeId: number) => {
+    if (!matchingActivity || isPromoting) return;
+    
+    setIsPromoting(true);
+    try {
+      const response = await fetch(
+        `${process.env.EXPO_PUBLIC_API_URL}/api/v1/strava/promote?activity_id=${matchingActivity.id}&route_id=${routeId}`,
+        { 
+          method: 'POST',
+          headers: { 'ngrok-skip-browser-warning': 'true' } 
+        }
+      );
+      const data = await response.json();
+      if (data.status === 'success') {
+        setIsMatchModalVisible(false);
+        setMatchingActivity(null);
+        setMatchSearchQuery('');
+        setMatchSearchResults([]);
+        fetchUserRankings(); // Refresh
+      }
+    } catch (err) {
+      console.error('Promotion error:', err);
+    } finally {
+      setIsPromoting(false);
+    }
+  };
+
+  const ignoreActivity = async (activityId: string) => {
+    try {
+      const response = await fetch(
+        `${process.env.EXPO_PUBLIC_API_URL}/api/v1/strava/ignore?activity_id=${activityId}`,
+        { 
+          method: 'POST',
+          headers: { 'ngrok-skip-browser-warning': 'true' } 
+        }
+      );
+      const data = await response.json();
+      if (data.status === 'success') {
+        fetchUserRankings(); // Refresh
+      }
+    } catch (err) {
+      console.error('Ignore error:', err);
+    }
+  };
+
   const toggleBookmark = async (routeId: string) => {
     if (!user?.id) return;
     setBookmarks(prev => 
@@ -123,22 +216,27 @@ export default function Dashboard() {
     scrollRef.current?.scrollTo({ y: 0, animated: true });
   };
 
-  // Shared Card Component to maintain consistency
-  const ActivityCard = ({ item, isRankView = false }: { item: any, isRankView?: boolean }) => (
-    <View key={item.id} style={[styles.activityCard, !item.is_ranked && isRankView && styles.unrankedCard]}>
+  const ActivityCard = ({ item, isRankView = false, isStaging = false }: { item: any, isRankView?: boolean, isStaging?: boolean }) => (
+    <View key={item.id} style={[
+      styles.activityCard, 
+      !item.is_ranked && isRankView && styles.unrankedCard,
+      isStaging && styles.stagingCard
+    ]}>
       <View style={styles.cardHeader}>
         <View style={styles.trailTitleRow}>
           <Text style={styles.trailNameText}>{item.trail_name || item.name}</Text>
         </View>
-        <View style={styles.ratingBadge}>
-          <Text style={styles.ratingValueText}>
-            {(!isRankView) 
-              ? (item.global_rating || 0).toFixed(2)
-              : (item.is_ranked && showScores) 
-                ? (item.personal_score || 0).toFixed(2) 
-                : '--'}
+        <View style={[styles.ratingBadge, isStaging && { borderColor: Colors.border }]}>
+          <Text style={[styles.ratingValueText, isStaging && { color: Colors.textSecondary }]}>
+            {isStaging 
+              ? '--'
+              : (!isRankView) 
+                ? (item.global_rating || 0).toFixed(2)
+                : (item.is_ranked && showScores) 
+                  ? (item.personal_score || 0).toFixed(2) 
+                  : '--'}
           </Text>
-          <Text style={styles.ratingLabelText}>rating</Text>
+          <Text style={[styles.ratingLabelText, isStaging && { color: Colors.textSecondary }]}>rating</Text>
         </View>
       </View>
 
@@ -148,7 +246,15 @@ export default function Dashboard() {
         <Text style={styles.dateText}>
           {item.start_date ? new Date(item.start_date).toLocaleDateString() : 'recent'}
         </Text>
-        {!item.is_ranked && isRankView && (
+        {isStaging && (
+          <>
+            <Text style={styles.dotSeparator}> • </Text>
+            <View style={styles.stagingBadge}>
+              <Text style={styles.stagingBadgeText}>Unmatched Activity</Text>
+            </View>
+          </>
+        )}
+        {!item.is_ranked && isRankView && !isStaging && (
           <>
             <Text style={styles.dotSeparator}> • </Text>
             <View style={styles.pendingBadge}>
@@ -169,7 +275,7 @@ export default function Dashboard() {
           <View style={styles.footerMetric}>
             <Ionicons name="resize-outline" size={14} color={Colors.textSecondary} />
             <Text style={styles.metricLabel}>
-              {((item.distance || item.distance_meters) / 1609.34).toFixed(1)} mi
+              {((item.distance || item.distance_meters || 0) / 1609.34).toFixed(1)} mi
             </Text>
           </View>
           <View style={styles.footerMetric}>
@@ -180,10 +286,30 @@ export default function Dashboard() {
           </View>
         </View>
         
-        {!item.is_ranked && isRankView ? (
+        {isStaging ? (
+           <View style={styles.stagingActions}>
+             <TouchableOpacity 
+              style={styles.ignoreAction}
+              onPress={() => ignoreActivity(item.id)}
+            >
+              <Ionicons name="eye-off-outline" size={16} color={Colors.textSecondary} />
+            </TouchableOpacity>
+            
+             <TouchableOpacity 
+              style={styles.promoteAction}
+              onPress={() => {
+                setMatchingActivity(item);
+                setIsMatchModalVisible(true);
+              }}
+            >
+              <Text style={styles.rankNowActionText}>Promote to Trail</Text>
+              <Ionicons name="sparkles" size={12} color="white" />
+            </TouchableOpacity>
+          </View>
+        ) : !item.is_ranked && isRankView ? (
           <TouchableOpacity 
             style={styles.rankNowAction}
-            onPress={() => router.push(`/ranking?fixed_id=${item.id}`)}
+            onPress={() => router.push(`/ranking?fixed_id=${item.canonical_route_id || item.id}`)}
           >
             <Text style={styles.rankNowActionText}>Rank This Hike</Text>
             <Ionicons name="arrow-forward" size={12} color="white" />
@@ -266,10 +392,11 @@ export default function Dashboard() {
               <TextInput
                 style={styles.searchInput}
                 placeholder="search trails..."
-                placeholderTextColor={Colors.border}
+                placeholderTextColor={Colors.textSecondary}
                 value={searchQuery}
                 onChangeText={handleSearch}
                 autoCapitalize="none"
+                selectionColor={Colors.primary}
               />
               {isSearching && <ActivityIndicator size="small" color={Colors.primary} />}
             </View>
@@ -319,7 +446,7 @@ export default function Dashboard() {
               activities.map((item) => <ActivityCard key={item.id} item={item} />)
             )
           ) : (
-            userRankings.length === 0 ? (
+            userRankings.length === 0 && unmatchedActivities.length === 0 ? (
               <View style={styles.emptyState}>
                 <Text style={styles.emptyText}>No hikes found.</Text>
                 <Text style={styles.emptySub}>
@@ -328,6 +455,22 @@ export default function Dashboard() {
               </View>
             ) : (
               <>
+                {unmatchedActivities.length > 0 && (
+                   <View style={styles.stagingAreaHeader}>
+                      <Text style={styles.stagingAreaTitle}>staging area</Text>
+                      <Text style={styles.stagingAreaSub}>Promote these activities to trails to start ranking.</Text>
+                   </View>
+                )}
+                {unmatchedActivities.map((item) => <ActivityCard key={item.id} item={item} isRankView={true} isStaging={true} />)}
+                
+                {(userRankings.length > 0 || unmatchedActivities.length > 0) && <View style={styles.divider} />}
+                
+                {userRankings.length > 0 && (
+                   <View style={styles.stagingAreaHeader}>
+                      <Text style={styles.stagingAreaTitle}>ranked trails</Text>
+                   </View>
+                )}
+                
                 {!showScores && userRankings.some(r => r.is_ranked) && (
                   <View style={styles.calibrationInfo}>
                     <Ionicons name="information-circle-outline" size={16} color={Colors.primary} />
@@ -342,6 +485,60 @@ export default function Dashboard() {
           )}
         </ScrollView>
       </SafeAreaView>
+
+      {/* Match Trail Modal */}
+      <Modal
+        visible={isMatchModalVisible}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={() => setIsMatchModalVisible(false)}
+      >
+        <View style={styles.matchModalOverlay}>
+          <View style={styles.matchModalContent}>
+            <View style={styles.matchModalHeader}>
+              <Text style={styles.matchModalTitle}>promote to trail</Text>
+              <TouchableOpacity onPress={() => setIsMatchModalVisible(false)}>
+                <Ionicons name="close" size={24} color={Colors.text} />
+              </TouchableOpacity>
+            </View>
+            
+            <Text style={styles.matchModalSub}>Search for the trail you hiked:</Text>
+            
+            <View style={styles.matchSearchInputWrapper}>
+              <Ionicons name="search-outline" size={20} color={Colors.textSecondary} />
+              <TextInput
+                style={styles.matchSearchInput}
+                placeholder="search trail database..."
+                placeholderTextColor={Colors.textSecondary}
+                value={matchSearchQuery}
+                onChangeText={handleMatchSearch}
+                autoFocus={true}
+                selectionColor={Colors.primary}
+              />
+              {isMatchSearching && <ActivityIndicator size="small" color={Colors.primary} />}
+            </View>
+            
+            <ScrollView style={styles.matchSearchResultsList}>
+              {matchSearchResults.map((result) => (
+                <TouchableOpacity
+                  key={result.id}
+                  style={styles.matchResultItem}
+                  onPress={() => promoteActivity(result.id)}
+                  disabled={isPromoting}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.matchResultName}>{result.name}</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color={Colors.primary} />
+                </TouchableOpacity>
+              ))}
+              {matchSearchQuery.length > 2 && matchSearchResults.length === 0 && !isMatchSearching && (
+                <Text style={styles.noResultsText}>No trails found matching "{matchSearchQuery}"</Text>
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
 
       {/* Profile Overlay */}
       <Modal
@@ -448,7 +645,7 @@ const styles = StyleSheet.create({
   switchTextActive: { color: Colors.text, fontWeight: '700' },
   searchAndFilter: { flexDirection: 'row', gap: 12, marginBottom: 12, zIndex: 10 },
   searchInputWrapper: { flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surfaceSecondary, paddingHorizontal: 12, height: 44, borderWidth: 1, borderColor: Colors.border, gap: 8 },
-  searchInput: { flex: 1, color: Colors.text, fontSize: 15, fontWeight: '300' },
+  searchInput: { flex: 1, color: Colors.text, fontSize: 15, fontWeight: '300', outlineWidth: 0, outlineStyle: 'none', borderWidth: 0 } as any,
   filterButton: { width: 44, height: 44, backgroundColor: Colors.surfaceSecondary, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: Colors.border },
   filterButtonActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
   filtersDrawer: { marginBottom: 12 },
@@ -528,6 +725,46 @@ const styles = StyleSheet.create({
     gap: 6
   },
   rankNowActionText: { color: 'white', fontSize: 11, fontWeight: '800', textTransform: 'uppercase' },
+  promoteAction: {
+    backgroundColor: Colors.primary,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6
+  },
+  stagingActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12
+  },
+  ignoreAction: {
+    padding: 6,
+    backgroundColor: Colors.surfaceSecondary,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  stagingCard: {
+    borderStyle: 'dashed',
+    backgroundColor: Colors.surfaceSecondary,
+  },
+  stagingBadge: { backgroundColor: Colors.primary, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 2 },
+  stagingBadgeText: { fontSize: 8, color: 'white', fontWeight: '800', textTransform: 'uppercase' },
+  stagingAreaHeader: { marginBottom: 12, marginTop: 8 },
+  stagingAreaTitle: { fontSize: 24, fontWeight: '300', color: Colors.text, letterSpacing: -0.5 },
+  stagingAreaSub: { fontSize: 12, color: Colors.textSecondary, fontStyle: 'italic', marginTop: 2 },
+
+  matchModalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'center', alignItems: 'center', padding: 20 },
+  matchModalContent: { backgroundColor: Colors.background, width: '100%', maxWidth: 400, padding: 24, borderWidth: 1, borderColor: Colors.border },
+  matchModalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  matchModalTitle: { fontSize: 28, fontWeight: '300', color: Colors.text, letterSpacing: -1 },
+  matchModalSub: { fontSize: 14, color: Colors.textSecondary, marginBottom: 20, fontStyle: 'italic' },
+  matchSearchInputWrapper: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surfaceSecondary, paddingHorizontal: 12, height: 48, borderWidth: 1, borderColor: Colors.border, gap: 8, marginBottom: 16 },
+  matchSearchInput: { flex: 1, color: Colors.text, fontSize: 16, fontWeight: '300', outlineWidth: 0, outlineStyle: 'none', borderWidth: 0 } as any,
+  matchSearchResultsList: { maxHeight: 300 },
+  matchResultItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 0.5, borderBottomColor: Colors.border },
+  matchResultName: { fontSize: 16, color: Colors.text, fontWeight: '400' },
+  noResultsText: { textAlign: 'center', color: Colors.textSecondary, marginTop: 20, fontStyle: 'italic' },
 
   calibrationInfo: { 
     flexDirection: 'row', 

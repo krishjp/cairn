@@ -113,7 +113,7 @@ class Activity(SQLModel, table=True):
         default=None, sa_column=Column(DateTime, nullable=True)
     )
     is_ignored: bool = Field(default=False)
-    notes: Optional[str] = Field(default=None)
+    notes: Optional[str] = Field(default=None, sa_column=Column(Text, nullable=True))
     reactions_count: int = Field(default=0)
     comments_count: int = Field(default=0)
     canonical_route_id: Optional[int] = Field(

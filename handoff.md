@@ -12,7 +12,7 @@
 - **Integration:** Strava API (OAuth2 + Webhooks)
 
 ## 3. Current Status
-The project has transitioned into a functional "Dictionary-Style" platform with a stable identity system and a refined ranking engine.
+The project has transitioned into a functional "Dictionary-Style" platform with a stable identity system, a refined ranking engine, and a robust manual-matching staging area.
 
 ### Completed Tasks:
 - [x] **New Rating System**: Migrated to a human-readable **1.00 - 10.00 scale**.
@@ -23,6 +23,9 @@ The project has transitioned into a functional "Dictionary-Style" platform with 
 - [x] **Dual Viewport Feed**: Toggle between "Mountain Circle" and "My Rankings".
 - [x] **Auto-Refresh Dashboard**: Used `useFocusEffect` to sync rankings immediately.
 - [x] **Unit Conversion**: Fixed consistency for Distance (mi) and Elevation (ft).
+- [x] **Staging Area Workflow**: Implemented a "manual-staging" model where raw activities must be promoted to trails before ranking.
+- [x] **Activity Management**: Added "Hide" and "Restore" functionality for ignoring commute/walk activities.
+- [x] **Manual Matching UI**: Built a dictionary-style promotion modal with real-time trail search.
 
 ### Verified State:
 - `docker-compose up` runs successfully.
@@ -38,11 +41,11 @@ The project has transitioned into a functional "Dictionary-Style" platform with 
 ## 5. Next Steps
 1. **Filter Integration**: Connect the frontend filter chips to backend query parameters in `routes/search`.
 2. **Activity Detail View**: Implement a drill-down view for deep dives into specific hike metadata and maps.
-3. **Friend Verification**: Add a screen to promote unknown activities to Canonical Routes or ignore them.
+3. **Ranking Algorithm Calibration**: Tune the Elo/Bradley-Terry parameters to handle diverse trail difficulty profiles and user preference swings.
 4. **Global Leaderboard Visualization**: Add a "Mountain Circle" graph visualization to the landing page.
 
 ## 6. Troubleshooting
 - **Ngrok Conflict**: If the `cairn-ngrok-1` container fails with `ERR_NGROK_334`, ensure all other ngrok sessions using the `comrade-devotion-divinity` domain are terminated (check other devices/Macs).
 
 ---
-*Generated on 2026-05-05*
+*Generated on 2026-05-06*

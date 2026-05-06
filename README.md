@@ -98,21 +98,41 @@ Ensure Docker is running and execute:
 
 ```bash
 docker compose up -d
-docker compose exec backend python -m app.db_init
-docker compose exec backend python -m app.migrate_social # Apply latest social schema
+docker compose exec backend alembic upgrade head
 ```
 
-### 3. Useful Developer Commands
+### 3. Database Migrations (Alembic)
+Cairn uses Alembic for database migrations, providing a workflow similar to Django:
+
+*   **Create a migration** (after changing `models.py`):
+    ```bash
+    docker compose exec backend alembic revision --autogenerate -m "description of change"
+    ```
+*   **Apply migrations**:
+    ```bash
+    docker compose exec backend alembic upgrade head
+    ```
+*   **Revert last migration**:
+    ```bash
+    docker compose exec backend alembic downgrade -1
+    ```
+
+### 4. Useful Developer Commands
 *   **Wipe Rankings:** Reset all comparison history and personal scores for testing:
     ```bash
     docker compose exec backend python -m app.wipe_rankings
     ```
-*   **Seed Mock Data:** Populate the feed with social activities:
+
+*   **Mock Data Management:** Populate your feed with test activities from Yosemite (Mist Trail, etc.):
     ```bash
-    docker compose exec backend python -m app.seed_mock_data
+    # Attach mock hikes to a specific user
+    docker compose exec backend python -m app.manage_mock_data --attach <YOUR_USER_ID>
+    
+    # Remove mock hikes
+    docker compose exec backend python -m app.manage_mock_data --detach <YOUR_USER_ID>
     ```
 
-### 3. Frontend Setup (Mobile & Web)
+### 5. Frontend Setup (Mobile & Web)
 The app is built with Expo and can be run on iOS, Android, or Web.
 
 ```bash

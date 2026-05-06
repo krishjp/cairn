@@ -6,7 +6,7 @@ from app.core.config import settings
 from app.services import strava as strava_service
 from app.services.strava import get_activity_stream, stream_to_wkt
 from app.services.matching import match_activity_to_route
-from app.models.models import User, Activity, StravaAccount, Follow
+from app.models.models import User, Activity, StravaAccount, Follow, CanonicalRoute
 import uuid
 import logging
 from datetime import datetime
@@ -90,7 +90,7 @@ async def sync_activities(user_id: uuid.UUID, session: Session = Depends(get_ses
             activity_id = act.get("id")
             # Check if already exists
             existing = session.exec(
-                select(Activity).where(Activity.strava_activity_id == str(activity_id))
+                select(Activity).where(Activity.strava_activity_id == int(activity_id))
             ).first()
             
             if existing:
@@ -123,7 +123,7 @@ async def sync_activities(user_id: uuid.UUID, session: Session = Depends(get_ses
 
                 new_activity = Activity(
                     user_id=user_id,
-                    strava_activity_id=str(activity_id),
+                    strava_activity_id=int(activity_id),
                     raw_polyline=wkt,
                     name=act.get("name"),
                     sport_type=act.get("sport_type") or act.get("type"),
@@ -198,7 +198,7 @@ async def get_social_feed(
     # 2. Include the user's own ID
     relevant_user_ids = [user_id] + list(friend_ids)
     
-    # 3. Fetch matched hiking activities from these users
+    # 3. Fetch ONLY matched hiking activities from these users.
     stmt = (
         select(Activity)
         .where(Activity.user_id.in_(relevant_user_ids))
@@ -224,6 +224,70 @@ async def get_social_feed(
             
         result.append(act_dict)
         
+    return result
+
+
+@router.post("/promote")
+def promote_activity_to_route(
+    activity_id: uuid.UUID, 
+    route_id: int, 
+    session: Session = Depends(get_session)
+):
+    """Manually match an activity to a canonical route."""
+    activity = session.get(Activity, activity_id)
+    if not activity:
+        raise HTTPException(status_code=404, detail="Activity not found")
+    
+    route = session.get(CanonicalRoute, route_id)
+    if not route:
+        raise HTTPException(status_code=404, detail="Trail not found")
+        
+    activity.canonical_route_id = route_id
+    session.add(activity)
+    session.commit()
+    return {"status": "success"}
+
+
+@router.post("/ignore")
+def ignore_activity(activity_id: uuid.UUID, session: Session = Depends(get_session)):
+    """Mark an activity as ignored."""
+    activity = session.get(Activity, activity_id)
+    if not activity:
+        raise HTTPException(status_code=404, detail="Activity not found")
+    activity.is_ignored = True
+    session.add(activity)
+    session.commit()
+    return {"status": "success"}
+
+
+@router.post("/restore")
+def restore_activity(activity_id: uuid.UUID, session: Session = Depends(get_session)):
+    """Un-mark an activity as ignored."""
+    activity = session.get(Activity, activity_id)
+    if not activity:
+        raise HTTPException(status_code=404, detail="Activity not found")
+    activity.is_ignored = False
+    session.add(activity)
+    session.commit()
+    return {"status": "success"}
+
+
+@router.get("/ignored")
+async def get_ignored_activities(user_id: uuid.UUID, session: Session = Depends(get_session)):
+    """Fetch all ignored activities for a user."""
+    stmt = (
+        select(Activity)
+        .where(Activity.user_id == user_id)
+        .where(Activity.is_ignored == True)
+        .order_by(Activity.start_date.desc())
+    )
+    activities = session.exec(stmt).all()
+    result = []
+    for act in activities:
+        act_dict = act.dict()
+        if "raw_polyline" in act_dict:
+            del act_dict["raw_polyline"]
+        result.append(act_dict)
     return result
 
 
@@ -274,7 +338,7 @@ async def webhook_listener(request: Request, session: Session = Depends(get_sess
 
                     new_activity = Activity(
                         user_id=user.id,
-                        strava_activity_id=str(activity_id),
+                        strava_activity_id=int(activity_id),
                         raw_polyline=wkt,
                         name=act_data.get("name"),
                         sport_type=act_data.get("sport_type") or act_data.get("type"),

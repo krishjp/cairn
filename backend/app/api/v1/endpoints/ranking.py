@@ -29,6 +29,15 @@ def get_personal_leaderboard(
     Get the user's personal ranking of trails.
     Scores are normalized 1-10 but only 'shown' if 5+ hikes are ranked.
     """
+    # 1. Get all unmatched activities for this user (The Staging Area)
+    unmatched_stmt = (
+        select(Activity)
+        .where(Activity.user_id == user_id, Activity.canonical_route_id == None, Activity.is_ignored == False)
+        .order_by(Activity.start_date.desc())
+    )
+    unmatched_activities = session.exec(unmatched_stmt).all()
+
+    # 2. Get matched trail IDs
     matched_routes_stmt = (
         select(Activity.canonical_route_id)
         .where(Activity.user_id == user_id, Activity.canonical_route_id != None)
@@ -36,9 +45,15 @@ def get_personal_leaderboard(
     )
     matched_route_ids = session.exec(matched_routes_stmt).all()
 
+    # 3. Handle case where no matched routes exist (but may have unmatched ones)
     if not matched_route_ids:
-        return {"routes": [], "show_scores": False}
+        return {
+            "routes": [], 
+            "unmatched_activities": [a.model_dump(exclude={"raw_polyline"}) for a in unmatched_activities],
+            "show_scores": False
+        }
 
+    # 4. Check for calibration status
     ranked_count_stmt = (
         select(func.count(UserRouteRating.canonical_route_id))
         .where(UserRouteRating.user_id == user_id)
@@ -46,6 +61,7 @@ def get_personal_leaderboard(
     ranked_count = session.exec(ranked_count_stmt).one()
     show_scores = ranked_count >= 5
 
+    # 5. Fetch ranked trails
     statement = (
         select(CanonicalRoute, UserRouteRating.rating_score)
         .outerjoin(UserRouteRating, 
@@ -81,6 +97,7 @@ def get_personal_leaderboard(
 
     return {
         "routes": normalized_routes,
+        "unmatched_activities": [a.model_dump(exclude={"raw_polyline"}) for a in unmatched_activities],
         "show_scores": show_scores
     }
 
