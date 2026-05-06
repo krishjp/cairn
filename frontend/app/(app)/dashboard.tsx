@@ -1,97 +1,88 @@
-import React, { useState, useRef } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Modal, Dimensions, SafeAreaView, Alert, ActivityIndicator, TextInput } from 'react-native';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Modal, Dimensions, SafeAreaView, ActivityIndicator, TextInput } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
 import { Colors } from '../../constants/Colors';
 import { Ionicons } from '@expo/vector-icons';
 import { CairnLogo } from '../../components/CairnLogo';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 
 const { width, height } = Dimensions.get('window');
 
 export default function Dashboard() {
   const { user, signOut } = useAuth();
   const [showProfile, setShowProfile] = useState(false);
-  const [isSyncing, setIsSyncing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [isSearching, setIsSearching] = useState(false);
-  const [bookmarks, setBookmarks] = useState<number[]>([]);
+  const [bookmarks, setBookmarks] = useState<string[]>([]);
   const [mockRankingCount, setMockRankingCount] = useState(7);
   const [viewMode, setViewMode] = useState<'feed' | 'mylist'>('feed');
   const [showFilters, setShowFilters] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
+  const [activities, setActivities] = useState<any[]>([]);
+  const [userRankings, setUserRankings] = useState<any[]>([]);
+  const [showScores, setShowScores] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const mockActivities = [
-    { 
-      id: '1', 
-      user: 'Krish Patel', 
-      trail: 'clouds rest', 
-      trail_id: 101,
-      location: 'yosemite national park',
-      date: '2h ago', 
-      rating: 8.42,
-      definition: 'a peak in Yosemite National Park offering a 360-degree view of the entire park.',
-      distance: '14.5 mi',
-      elevation: '3,100 ft'
-    },
-    { 
-      id: '2', 
-      user: 'Sarah Jenkins', 
-      trail: 'skyline trail', 
-      trail_id: 102,
-      location: 'mt. rainier',
-      date: '5h ago', 
-      rating: 7.95,
-      definition: 'a loop trail in the Paradise area of Mount Rainier National Park with dramatic glacier views.',
-      distance: '5.5 mi',
-      elevation: '1,700 ft'
-    },
-    { 
-      id: '3', 
-      user: 'Alex Chen', 
-      trail: 'angels landing', 
-      trail_id: 103,
-      location: 'zion national park',
-      date: 'yesterday', 
-      rating: 7.81,
-      definition: 'a 1,488-foot tall rock formation in Zion National Park with narrow ridges and steep drops.',
-      distance: '5.4 mi',
-      elevation: '1,488 ft'
-    },
-  ];
+  // Re-fetch data whenever the screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      if (user?.id) {
+        if (viewMode === 'feed') {
+          fetchActivities();
+        } else {
+          fetchUserRankings();
+        }
+      }
+    }, [user, viewMode])
+  );
 
-  const userRankings = [
-    {
-      id: 'r1',
-      trail: 'half dome',
-      trail_id: 201,
-      location: 'yosemite, ca',
-      rating: 9.12,
-      rank: 1,
-      distance: '17.0 mi',
-      elevation: '4,800 ft'
-    },
-    {
-      id: 'r2',
-      trail: 'clouds rest',
-      trail_id: 101,
-      location: 'yosemite, ca',
-      rating: 8.42,
-      rank: 2,
-      distance: '14.5 mi',
-      elevation: '3,100 ft'
-    },
-    {
-      id: 'r3',
-      trail: 'mt. tallac',
-      trail_id: 203,
-      location: 'lake tahoe, ca',
-      rating: 7.65,
-      rank: 3,
-      distance: '10.2 mi',
-      elevation: '3,250 ft'
+  const fetchActivities = async () => {
+    setIsLoading(true);
+    try {
+      const response = await fetch(
+        `${process.env.EXPO_PUBLIC_API_URL}/api/v1/strava/feed?user_id=${user?.id}`,
+        { headers: { 'ngrok-skip-browser-warning': 'true' } }
+      );
+      const data = await response.json();
+      if (Array.isArray(data)) {
+        setActivities(data);
+      }
+    } catch (err) {
+      console.error("Failed to fetch feed:", err);
+    } finally {
+      setIsLoading(false);
     }
-  ];
+  };
+
+  const fetchUserRankings = async () => {
+    setIsLoading(true);
+    try {
+      const response = await fetch(
+        `${process.env.EXPO_PUBLIC_API_URL}/api/v1/ranking/personal-leaderboard?user_id=${user?.id}`,
+        { headers: { 'ngrok-skip-browser-warning': 'true' } }
+      );
+      const data = await response.json();
+      if (data && data.routes) {
+        // Sort so unranked (is_ranked = false) are always at the top
+        const sorted = data.routes.sort((a, b) => {
+          if (a.is_ranked === b.is_ranked) return 0;
+          return a.is_ranked ? 1 : -1;
+        });
+        setUserRankings(sorted);
+        setShowScores(data.show_scores);
+      } else {
+        setUserRankings([]);
+        setShowScores(false);
+      }
+    } catch (err) {
+      console.error("Failed to fetch rankings:", err);
+      setUserRankings([]);
+      setShowScores(false);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleSearch = async (text: string) => {
     setSearchQuery(text);
@@ -119,57 +110,99 @@ export default function Dashboard() {
     }
   };
 
-  const toggleBookmark = async (routeId: number) => {
+  const toggleBookmark = async (routeId: string) => {
     if (!user?.id) return;
-    try {
-      const response = await fetch(
-        `${process.env.EXPO_PUBLIC_API_URL}/api/v1/routes/bookmark/${routeId}?user_id=${user.id}`, 
-        { 
-          method: 'POST',
-          headers: { 'ngrok-skip-browser-warning': 'true' } 
-        }
-      );
-      const data = await response.json();
-      if (data.status === 'bookmarked') {
-        setBookmarks(prev => [...prev, routeId]);
-      } else {
-        setBookmarks(prev => prev.filter(id => id !== routeId));
-      }
-    } catch (err) {
-      console.error('Bookmark error:', err);
-    }
-  };
-
-  const handleSync = async () => {
-    if (!user?.id) {
-      Alert.alert("Error", "User not identified. Please sign in again.");
-      return;
-    }
-    try {
-      setIsSyncing(true);
-      const response = await fetch(
-        `${process.env.EXPO_PUBLIC_API_URL}/api/v1/strava/sync?user_id=${user.id}`, 
-        { 
-          method: 'POST',
-          headers: { 'ngrok-skip-browser-warning': 'true' } 
-        }
-      );
-      const data = await response.json();
-      if (response.ok) {
-        Alert.alert("Sync Complete", `Imported ${data.synced} new activities.`);
-      } else {
-        throw new Error(data.detail || "Sync failed");
-      }
-    } catch (err: any) {
-      Alert.alert("Sync Error", err.message);
-    } finally {
-      setIsSyncing(false);
-    }
+    setBookmarks(prev => 
+      prev.includes(routeId) 
+        ? prev.filter(id => id !== routeId) 
+        : [...prev, routeId]
+    );
   };
 
   const scrollToTop = () => {
     scrollRef.current?.scrollTo({ y: 0, animated: true });
   };
+
+  // Shared Card Component to maintain consistency
+  const ActivityCard = ({ item, isRankView = false }: { item: any, isRankView?: boolean }) => (
+    <View key={item.id} style={[styles.activityCard, !item.is_ranked && isRankView && styles.unrankedCard]}>
+      <View style={styles.cardHeader}>
+        <View style={styles.trailTitleRow}>
+          <Text style={styles.trailNameText}>{item.trail_name || item.name}</Text>
+        </View>
+        <View style={styles.ratingBadge}>
+          <Text style={styles.ratingValueText}>
+            {(!isRankView) 
+              ? (item.global_rating || 0).toFixed(2)
+              : (item.is_ranked && showScores) 
+                ? (item.personal_score || 0).toFixed(2) 
+                : '--'}
+          </Text>
+          <Text style={styles.ratingLabelText}>rating</Text>
+        </View>
+      </View>
+
+      <View style={styles.cardMetadata}>
+        <Text style={styles.userName}>{item.user_name || user?.name || 'Explorer'}</Text>
+        <Text style={styles.dotSeparator}> • </Text>
+        <Text style={styles.dateText}>
+          {item.start_date ? new Date(item.start_date).toLocaleDateString() : 'recent'}
+        </Text>
+        {!item.is_ranked && isRankView && (
+          <>
+            <Text style={styles.dotSeparator}> • </Text>
+            <View style={styles.pendingBadge}>
+              <Text style={styles.pendingText}>Pending Calibration</Text>
+            </View>
+          </>
+        )}
+      </View>
+
+      {item.notes && (
+        <Text style={styles.activityNotes} numberOfLines={2}>
+          "{item.notes}"
+        </Text>
+      )}
+
+      <View style={styles.cardFooter}>
+        <View style={styles.metricsGroup}>
+          <View style={styles.footerMetric}>
+            <Ionicons name="resize-outline" size={14} color={Colors.textSecondary} />
+            <Text style={styles.metricLabel}>
+              {((item.distance || item.distance_meters) / 1609.34).toFixed(1)} mi
+            </Text>
+          </View>
+          <View style={styles.footerMetric}>
+            <Ionicons name="timer-outline" size={14} color={Colors.textSecondary} />
+            <Text style={styles.metricLabel}>
+              {item.moving_time ? Math.floor(item.moving_time / 60) : '—'} min
+            </Text>
+          </View>
+        </View>
+        
+        {!item.is_ranked && isRankView ? (
+          <TouchableOpacity 
+            style={styles.rankNowAction}
+            onPress={() => router.push(`/ranking?fixed_id=${item.id}`)}
+          >
+            <Text style={styles.rankNowActionText}>Rank This Hike</Text>
+            <Ionicons name="arrow-forward" size={12} color="white" />
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.socialGroup}>
+            <View style={styles.socialItem}>
+              <Ionicons name="heart-outline" size={16} color={Colors.textSecondary} />
+              <Text style={styles.socialCount}>{item.reactions_count || 0}</Text>
+            </View>
+            <View style={styles.socialItem}>
+              <Ionicons name="chatbubble-outline" size={16} color={Colors.textSecondary} />
+              <Text style={styles.socialCount}>{item.comments_count || 0}</Text>
+            </View>
+          </View>
+        )}
+      </View>
+    </View>
+  );
 
   return (
     <View style={styles.container}>
@@ -179,35 +212,32 @@ export default function Dashboard() {
           <TouchableOpacity onPress={scrollToTop} style={styles.logoTouch}>
             <CairnLogo size={32} color={Colors.primary} />
           </TouchableOpacity>
-          <TouchableOpacity 
-            onPress={() => setShowProfile(true)} 
-            style={styles.profileTrigger}
-          >
-            <View style={styles.avatarMini}>
-              <Text style={styles.avatarTextMini}>{user?.name?.[0] || 'U'}</Text>
-            </View>
-          </TouchableOpacity>
+          <View style={styles.navRight}>
+            <TouchableOpacity
+              onPress={() => setShowProfile(true)}
+              style={styles.profileTrigger}
+            >
+              <View style={styles.avatarMini}>
+                <Text style={styles.avatarTextMini}>{user?.name?.[0] || 'U'}</Text>
+              </View>
+            </TouchableOpacity>
+          </View>
         </View>
 
-        <ScrollView 
+        <ScrollView
           ref={scrollRef}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          {/* Welcome Back & Dashboard Title - Dictionary Style */}
+          {/* Dashboard Title - Dictionary Style */}
           <View style={styles.dictionaryHeader}>
-            <View style={styles.welcomeRow}>
-              <Text style={styles.welcomeText}>Welcome back,</Text>
-              <Text style={styles.userNameText}>{user?.name || 'Explorer'}</Text>
-            </View>
-            
             <View style={styles.wordRow}>
               <Text style={styles.headerWord}>{viewMode === 'feed' ? 'feed' : 'rankings'}</Text>
             </View>
             <Text style={styles.headerPart}>noun • <Text style={styles.subheading}>{viewMode === 'feed' ? 'Trail feed' : 'My personal list'}</Text></Text>
             <Text style={styles.headerDefinition}>
-              {viewMode === 'feed' 
+              {viewMode === 'feed'
                 ? 'a real-time stream of trail activities and rankings from your mountain circle.'
                 : 'your personal collection of trekked trails, ordered by your preference.'}
             </Text>
@@ -215,13 +245,13 @@ export default function Dashboard() {
 
           {/* View Switcher */}
           <View style={styles.viewSwitcher}>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={[styles.switchTab, viewMode === 'feed' && styles.switchTabActive]}
               onPress={() => setViewMode('feed')}
             >
               <Text style={[styles.switchText, viewMode === 'feed' && styles.switchTextActive]}>Mountain Circle</Text>
             </TouchableOpacity>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={[styles.switchTab, viewMode === 'mylist' && styles.switchTabActive]}
               onPress={() => setViewMode('mylist')}
             >
@@ -243,7 +273,7 @@ export default function Dashboard() {
               />
               {isSearching && <ActivityIndicator size="small" color={Colors.primary} />}
             </View>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={[styles.filterButton, showFilters && styles.filterButtonActive]}
               onPress={() => setShowFilters(!showFilters)}
             >
@@ -251,35 +281,23 @@ export default function Dashboard() {
             </TouchableOpacity>
           </View>
 
-          {/* Expandable Filters */}
-          {showFilters && (
-            <View style={styles.filtersDrawer}>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterChips}>
-                <TouchableOpacity style={styles.filterChip}><Text style={styles.chipText}>Distance</Text></TouchableOpacity>
-                <TouchableOpacity style={styles.filterChip}><Text style={styles.chipText}>Elevation Gain</Text></TouchableOpacity>
-                <TouchableOpacity style={styles.filterChip}><Text style={styles.chipText}>Region</Text></TouchableOpacity>
-                <TouchableOpacity style={styles.filterChip}><Text style={styles.chipText}>Difficulty</Text></TouchableOpacity>
-                <TouchableOpacity style={styles.filterChip}><Text style={styles.chipText}>State</Text></TouchableOpacity>
-              </ScrollView>
-            </View>
-          )}
-          
+          {/* Search Results */}
           {searchResults.length > 0 && (
             <View style={styles.searchResults}>
               {searchResults.map((result) => (
-                <TouchableOpacity 
-                  key={result.id} 
+                <TouchableOpacity
+                  key={result.id}
                   style={styles.searchResultItem}
                   onPress={() => toggleBookmark(result.id)}
                 >
                   <View style={{ flex: 1 }}>
                     <Text style={styles.resultName}>{result.name}</Text>
-                    <Text style={styles.resultElo}>{result.elo?.toFixed(2)} rating</Text>
+                    <Text style={styles.resultElo}>{(result.elo || 0).toFixed(2)} rating</Text>
                   </View>
-                  <Ionicons 
-                    name={bookmarks.includes(result.id) ? "bookmark" : "bookmark-outline"} 
-                    size={20} 
-                    color={bookmarks.includes(result.id) ? Colors.primary : Colors.border} 
+                  <Ionicons
+                    name={bookmarks.includes(result.id) ? "bookmark" : "bookmark-outline"}
+                    size={20}
+                    color={bookmarks.includes(result.id) ? Colors.primary : Colors.border}
                   />
                 </TouchableOpacity>
               ))}
@@ -289,75 +307,38 @@ export default function Dashboard() {
           <View style={styles.divider} />
 
           {/* Content View */}
-          {viewMode === 'feed' ? (
-            /* Feed Mode */
-            mockActivities.map((item) => (
-              <View key={item.id} style={styles.activityEntry}>
-                <View style={styles.entryHeader}>
-                  <View style={styles.entryWordRow}>
-                    <Text style={styles.entryTrail}>{item.trail}</Text>
-                  </View>
-                  <View style={styles.headerActions}>
-                    <TouchableOpacity onPress={() => toggleBookmark(item.trail_id)}>
-                      <Ionicons 
-                        name={bookmarks.includes(item.trail_id) ? "bookmark" : "bookmark-outline"} 
-                        size={20} 
-                        color={bookmarks.includes(item.trail_id) ? Colors.primary : Colors.textSecondary} 
-                      />
-                    </TouchableOpacity>
-                    <View style={styles.eloBadge}>
-                      <Text style={styles.eloText}>{item.rating.toFixed(2)} rating</Text>
-                    </View>
-                  </View>
-                </View>
-                
-                <View style={styles.entryMetadata}>
-                  <Text style={styles.entryUser}>{item.user}</Text>
-                  <Text style={styles.entryDot}> • </Text>
-                  <Text style={styles.entryLocation}>{item.location}</Text>
-                  <Text style={styles.entryDot}> • </Text>
-                  <Text style={styles.entryTime}>{item.date}</Text>
-                </View>
-
-                <Text style={styles.entryDefinition}>
-                  {item.definition}
-                </Text>
-
-                <View style={styles.entryActions}>
-                  <View style={styles.trailMetric}>
-                    <Ionicons name="resize-outline" size={14} color={Colors.textSecondary} />
-                    <Text style={styles.metricText}>{item.distance}</Text>
-                  </View>
-                  <View style={styles.trailMetric}>
-                    <Ionicons name="trending-up-outline" size={14} color={Colors.textSecondary} />
-                    <Text style={styles.metricText}>{item.elevation} gain</Text>
-                  </View>
-                </View>
+          {isLoading ? (
+            <ActivityIndicator size="large" color={Colors.primary} style={{ marginTop: 40 }} />
+          ) : viewMode === 'feed' ? (
+            activities.length === 0 ? (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyText}>No matched trails yet.</Text>
+                <Text style={styles.emptySub}>Sync your Strava activities in Settings.</Text>
               </View>
-            ))
+            ) : (
+              activities.map((item) => <ActivityCard key={item.id} item={item} />)
+            )
           ) : (
-            /* My List Mode */
-            userRankings.map((item) => (
-              <View key={item.id} style={styles.rankItem}>
-                <View style={styles.rankInfo}>
-                  <Text style={styles.rankNumber}>{item.rank}.</Text>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.rankTrailName}>{item.trail}</Text>
-                    <Text style={styles.rankLocation}>{item.location}</Text>
-                  </View>
-                  <View style={styles.rankRatingContainer}>
-                    <Text style={styles.rankRatingValue}>{item.rating.toFixed(2)}</Text>
-                    <Text style={styles.rankRatingLabel}>rating</Text>
-                  </View>
-                </View>
-                <View style={styles.rankMetrics}>
-                  <Text style={styles.rankMetricText}>{item.distance} • {item.elevation} gain</Text>
-                  <TouchableOpacity>
-                    <Ionicons name="ellipsis-vertical" size={16} color={Colors.border} />
-                  </TouchableOpacity>
-                </View>
+            userRankings.length === 0 ? (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyText}>No hikes found.</Text>
+                <Text style={styles.emptySub}>
+                  Sync your activities in Settings to start building your mountain circle.
+                </Text>
               </View>
-            ))
+            ) : (
+              <>
+                {!showScores && userRankings.some(r => r.is_ranked) && (
+                  <View style={styles.calibrationInfo}>
+                    <Ionicons name="information-circle-outline" size={16} color={Colors.primary} />
+                    <Text style={styles.calibrationInfoText}>
+                      Scoring is hidden until you rank at least 5 hikes.
+                    </Text>
+                  </View>
+                )}
+                {userRankings.map((item) => <ActivityCard key={item.id} item={item} isRankView={true} />)}
+              </>
+            )
           )}
         </ScrollView>
       </SafeAreaView>
@@ -370,14 +351,14 @@ export default function Dashboard() {
         onRequestClose={() => setShowProfile(false)}
       >
         <View style={styles.modalOverlay}>
-          <TouchableOpacity 
-            style={styles.modalDismiss} 
-            activeOpacity={1} 
-            onPress={() => setShowProfile(false)} 
+          <TouchableOpacity
+            style={styles.modalDismiss}
+            activeOpacity={1}
+            onPress={() => setShowProfile(false)}
           />
           <View style={styles.modalContent}>
             <View style={styles.modalHandle} />
-            
+
             <View style={styles.profileHeader}>
               <View style={styles.avatarLarge}>
                 <Text style={styles.avatarTextLarge}>{user?.name?.[0] || 'U'}</Text>
@@ -405,32 +386,7 @@ export default function Dashboard() {
               </View>
             </View>
 
-            {mockRankingCount < 10 && (
-              <View style={styles.calibrationContainer}>
-                <Text style={styles.calibrationTitle}>calibration progress</Text>
-                <View style={styles.calibrationBarContainer}>
-                  <View style={[styles.calibrationBar, { width: `${(mockRankingCount / 10) * 100}%` }]} />
-                </View>
-                <Text style={styles.calibrationSub}>
-                  {10 - mockRankingCount} more ranked hikes to reveal your status.
-                </Text>
-              </View>
-            )}
-
             <View style={styles.menuList}>
-              <TouchableOpacity 
-                style={styles.menuItem} 
-                onPress={handleSync}
-                disabled={isSyncing}
-              >
-                <Ionicons name="sync-outline" size={22} color={Colors.primary} />
-                <View style={styles.menuItemContent}>
-                  <Text style={styles.menuItemTitle}>sync activities</Text>
-                  <Text style={styles.menuItemSub}>Import from Strava</Text>
-                </View>
-                {isSyncing ? <ActivityIndicator size="small" color={Colors.primary} /> : <Ionicons name="chevron-forward" size={18} color={Colors.border} />}
-              </TouchableOpacity>
-
               <TouchableOpacity style={styles.menuItem}>
                 <Ionicons name="logo-octocat" size={22} color={Colors.text} />
                 <View style={styles.menuItemContent}>
@@ -447,10 +403,10 @@ export default function Dashboard() {
                   router.push('/settings');
                 }}
               >
-                <Ionicons name="settings-outline" size={22} color={Colors.text} />
+                <Ionicons name="settings-outline" size={22} color={Colors.primary} />
                 <View style={styles.menuItemContent}>
                   <Text style={styles.menuItemTitle}>settings</Text>
-                  <Text style={styles.menuItemSub}>Preferences & Privacy</Text>
+                  <Text style={styles.menuItemSub}>Sync & Preferences</Text>
                 </View>
                 <Ionicons name="chevron-forward" size={18} color={Colors.border} />
               </TouchableOpacity>
@@ -470,504 +426,142 @@ export default function Dashboard() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.background,
+  container: { flex: 1, backgroundColor: Colors.background },
+  safeArea: { flex: 1 },
+  navBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 24, paddingVertical: 12 },
+  logoTouch: { padding: 4 },
+  navRight: { flexDirection: 'row', alignItems: 'center', gap: 15 },
+  profileTrigger: { padding: 4 },
+  avatarMini: { width: 32, height: 32, borderRadius: 4, backgroundColor: Colors.surfaceSecondary, borderWidth: 1, borderColor: Colors.border, justifyContent: 'center', alignItems: 'center' },
+  avatarTextMini: { color: Colors.text, fontSize: 14, fontWeight: '700' },
+  scrollContent: { paddingHorizontal: 24, paddingTop: 10, paddingBottom: 40 },
+  dictionaryHeader: { marginBottom: 20 },
+  wordRow: { flexDirection: 'row', alignItems: 'baseline', gap: 12 },
+  headerWord: { fontSize: 48, fontWeight: '300', color: Colors.text, letterSpacing: -1 },
+  headerPart: { fontSize: 14, color: Colors.primary, fontStyle: 'italic', marginTop: 4 },
+  subheading: { color: Colors.textSecondary, fontWeight: '600' },
+  headerDefinition: { fontSize: 16, color: Colors.textSecondary, marginTop: 12, lineHeight: 24, fontWeight: '300' },
+  viewSwitcher: { flexDirection: 'row', marginBottom: 24, backgroundColor: Colors.surfaceSecondary, padding: 4, borderWidth: 1, borderColor: Colors.border },
+  switchTab: { flex: 1, paddingVertical: 10, alignItems: 'center' },
+  switchTabActive: { backgroundColor: Colors.background, elevation: 2 },
+  switchText: { fontSize: 14, color: Colors.textSecondary, fontWeight: '500' },
+  switchTextActive: { color: Colors.text, fontWeight: '700' },
+  searchAndFilter: { flexDirection: 'row', gap: 12, marginBottom: 12, zIndex: 10 },
+  searchInputWrapper: { flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surfaceSecondary, paddingHorizontal: 12, height: 44, borderWidth: 1, borderColor: Colors.border, gap: 8 },
+  searchInput: { flex: 1, color: Colors.text, fontSize: 15, fontWeight: '300' },
+  filterButton: { width: 44, height: 44, backgroundColor: Colors.surfaceSecondary, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: Colors.border },
+  filterButtonActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+  filtersDrawer: { marginBottom: 12 },
+  filterChips: { gap: 8 },
+  filterChip: { paddingHorizontal: 16, paddingVertical: 8, backgroundColor: Colors.surfaceSecondary, borderWidth: 1, borderColor: Colors.border },
+  chipText: { fontSize: 12, color: Colors.textSecondary, fontWeight: '300' },
+  searchResults: { position: 'absolute', top: 110, left: 24, right: 24, backgroundColor: Colors.surface, zIndex: 100, borderWidth: 1, borderColor: Colors.border, elevation: 5 },
+  searchResultItem: { flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: Colors.border },
+  resultName: { fontSize: 16, color: Colors.text, fontWeight: '600' },
+  resultElo: { fontSize: 12, color: Colors.textSecondary, marginTop: 4 },
+  divider: { height: 1, backgroundColor: Colors.border, marginVertical: 12, opacity: 0.5 },
+  
+  // Shared Card Styles
+  activityCard: { 
+    marginBottom: 20, 
+    borderWidth: 1, 
+    borderColor: Colors.border, 
+    padding: 20, 
+    backgroundColor: Colors.surface 
   },
-  safeArea: {
-    flex: 1,
-  },
-  navBar: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-  },
-  logoTouch: {
-    padding: 4,
-  },
-  profileTrigger: {
-    padding: 4,
-  },
-  avatarMini: {
-    width: 32,
-    height: 32,
-    borderRadius: 4,
-    backgroundColor: Colors.surfaceSecondary,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  avatarTextMini: {
-    color: Colors.text,
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  scrollContent: {
-    paddingHorizontal: 24,
-    paddingTop: 10,
-    paddingBottom: 40,
-  },
-  dictionaryHeader: {
-    marginBottom: 20,
-  },
-  welcomeRow: {
-    marginBottom: 20,
-  },
-  welcomeText: {
-    fontSize: 16,
-    color: Colors.textSecondary,
-    fontWeight: '300',
-  },
-  userNameText: {
-    fontSize: 32,
-    fontWeight: '800',
-    color: Colors.text,
-    letterSpacing: -1,
-  },
-  wordRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    gap: 12,
-  },
-  headerWord: {
-    fontSize: 48,
-    fontWeight: '300',
-    color: Colors.text,
-    letterSpacing: -1,
-  },
-  headerPhonetic: {
-    fontSize: 18,
-    color: Colors.textSecondary,
-    fontWeight: '300',
-  },
-  headerPart: {
-    fontSize: 14,
-    color: Colors.primary,
-    fontStyle: 'italic',
-    marginTop: 4,
-  },
-  subheading: {
-    color: Colors.textSecondary,
-    fontStyle: 'normal',
-    fontWeight: '600',
-  },
-  headerDefinition: {
-    fontSize: 16,
-    color: Colors.textSecondary,
-    marginTop: 12,
-    lineHeight: 24,
-    fontWeight: '300',
-  },
-  viewSwitcher: {
-    flexDirection: 'row',
-    marginBottom: 24,
-    backgroundColor: Colors.surfaceSecondary,
-    padding: 4,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  switchTab: {
-    flex: 1,
-    paddingVertical: 10,
-    alignItems: 'center',
-  },
-  switchTabActive: {
-    backgroundColor: Colors.background,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  switchText: {
-    fontSize: 14,
-    color: Colors.textSecondary,
-    fontWeight: '500',
-  },
-  switchTextActive: {
-    color: Colors.text,
-    fontWeight: '700',
-  },
-  searchAndFilter: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 12,
-    zIndex: 10,
-  },
-  searchInputWrapper: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    paddingHorizontal: 16,
-    height: 48,
-    gap: 12,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 16,
-    color: Colors.text,
-    fontWeight: '300',
-  },
-  filterButton: {
-    width: 48,
-    height: 48,
-    backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  filterButtonActive: {
-    backgroundColor: Colors.primary,
+  unrankedCard: {
     borderColor: Colors.primary,
+    backgroundColor: Colors.background,
   },
-  filtersDrawer: {
-    marginBottom: 16,
+  cardHeader: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    alignItems: 'center', 
+    marginBottom: 12 
   },
-  filterChips: {
-    gap: 8,
-    paddingVertical: 4,
+  trailTitleRow: { flex: 1 },
+  trailNameText: { fontSize: 20, fontWeight: '300', color: Colors.text, letterSpacing: -0.5 },
+  ratingBadge: { 
+    backgroundColor: Colors.surfaceSecondary, 
+    paddingHorizontal: 8, 
+    paddingVertical: 4, 
+    borderWidth: 1, 
+    borderColor: Colors.primary,
+    alignItems: 'center'
   },
-  filterChip: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    backgroundColor: Colors.surfaceSecondary,
-    borderWidth: 1,
-    borderColor: Colors.border,
+  ratingValueText: { color: Colors.primary, fontSize: 14, fontWeight: '800' },
+  ratingLabelText: { color: Colors.primary, fontSize: 8, fontWeight: '600', textTransform: 'uppercase' },
+  cardMetadata: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
+  userName: { fontSize: 12, color: Colors.primary, fontWeight: '700' },
+  dotSeparator: { fontSize: 12, color: Colors.textSecondary, marginHorizontal: 4 },
+  dateText: { fontSize: 12, color: Colors.textSecondary, fontWeight: '300' },
+  pendingBadge: { backgroundColor: Colors.surfaceSecondary, paddingHorizontal: 6, paddingVertical: 2, borderWidth: 1, borderColor: Colors.border },
+  pendingText: { fontSize: 8, color: Colors.textSecondary, fontWeight: '800', textTransform: 'uppercase' },
+  activityNotes: { 
+    fontSize: 14, 
+    color: Colors.textSecondary, 
+    fontStyle: 'italic', 
+    marginBottom: 16, 
+    lineHeight: 20,
+    fontWeight: '300'
   },
-  chipText: {
-    fontSize: 13,
-    color: Colors.text,
-    fontWeight: '500',
-  },
-  searchResults: {
-    position: 'absolute',
-    top: 48,
-    left: 0,
-    right: 0,
-    backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderTopWidth: 0,
-    borderColor: Colors.border,
-    zIndex: 100,
-  },
-  searchResultItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-  },
-  resultName: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: Colors.text,
-  },
-  resultElo: {
-    fontSize: 12,
-    color: Colors.primary,
-    fontWeight: '700',
-    marginTop: 2,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: Colors.border,
-    marginBottom: 30,
-  },
-  activityEntry: {
-    marginBottom: 40,
-  },
-  entryHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  entryWordRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    gap: 8,
-    flex: 1,
-  },
-  headerActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  entryTrail: {
-    fontSize: 22,
-    fontWeight: '300',
-    color: Colors.text,
-    letterSpacing: -0.5,
-  },
-  entryPhonetic: {
-    fontSize: 13,
-    color: Colors.textSecondary,
-    fontWeight: '300',
-  },
-  eloBadge: {
-    backgroundColor: 'rgba(67, 160, 71, 0.1)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 2,
-    borderWidth: 0.5,
-    borderColor: 'rgba(67, 160, 71, 0.3)',
-  },
-  eloText: {
-    color: Colors.primary,
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  entryMetadata: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  entryUser: {
-    fontSize: 13,
-    color: Colors.primary,
-    fontWeight: '500',
-  },
-  entryLocation: {
-    fontSize: 13,
-    color: Colors.textSecondary,
-    fontWeight: '300',
-    fontStyle: 'italic',
-  },
-  entryTime: {
-    fontSize: 13,
-    color: '#666',
-    fontWeight: '300',
-  },
-  entryDot: {
-    color: Colors.border,
-    marginHorizontal: 4,
-  },
-  entryDefinition: {
-    fontSize: 15,
-    color: Colors.textSecondary,
-    lineHeight: 22,
-    fontWeight: '300',
-    marginBottom: 16,
-  },
-  entryActions: {
-    flexDirection: 'row',
-    gap: 20,
-  },
-  trailMetric: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  metricText: {
-    fontSize: 13,
-    color: Colors.textSecondary,
-    fontWeight: '400',
-  },
-  rankItem: {
-    marginBottom: 30,
-    backgroundColor: Colors.surface,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  rankInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-    marginBottom: 12,
-  },
-  rankNumber: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: Colors.primary,
-  },
-  rankTrailName: {
-    fontSize: 18,
-    fontWeight: '300',
-    color: Colors.text,
-  },
-  rankLocation: {
-    fontSize: 13,
-    color: Colors.textSecondary,
-    fontWeight: '300',
-  },
-  rankRatingContainer: {
-    alignItems: 'flex-end',
-  },
-  rankRatingValue: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: Colors.text,
-  },
-  rankRatingLabel: {
-    fontSize: 10,
-    color: Colors.primary,
-    textTransform: 'uppercase',
-    fontWeight: '700',
-  },
-  rankMetrics: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  cardFooter: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
     alignItems: 'center',
     paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: Colors.border,
+    borderTopWidth: 0.5,
+    borderTopColor: Colors.border
   },
-  rankMetricText: {
-    fontSize: 12,
-    color: Colors.textSecondary,
-    fontWeight: '500',
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.7)',
-    justifyContent: 'flex-end',
-  },
-  modalDismiss: {
-    flex: 1,
-  },
-  modalContent: {
-    backgroundColor: Colors.surface,
-    paddingHorizontal: 24,
-    paddingBottom: 40,
-    paddingTop: 12,
-  },
-  modalHandle: {
-    width: 40,
-    height: 4,
-    backgroundColor: Colors.border,
-    borderRadius: 0,
-    alignSelf: 'center',
-    marginBottom: 24,
-  },
-  profileHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-    marginBottom: 30,
-  },
-  avatarLarge: {
-    width: 64,
-    height: 64,
-    borderRadius: 8,
+  metricsGroup: { flexDirection: 'row', gap: 16 },
+  footerMetric: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  metricLabel: { fontSize: 13, color: Colors.textSecondary, fontWeight: '300' },
+  socialGroup: { flexDirection: 'row', gap: 12 },
+  socialItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  socialCount: { fontSize: 12, color: Colors.textSecondary, fontWeight: '500' },
+  rankNowAction: {
     backgroundColor: Colors.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  avatarTextLarge: {
-    color: 'white',
-    fontSize: 24,
-    fontWeight: 'bold',
-  },
-  modalWordRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    gap: 8,
-  },
-  profileName: {
-    fontSize: 24,
-    fontWeight: '300',
-    color: Colors.text,
-  },
-  modalPhonetic: {
-    fontSize: 12,
-    color: Colors.textSecondary,
-    fontWeight: '300',
-  },
-  profilePart: {
-    fontSize: 14,
-    color: Colors.primary,
-    fontStyle: 'italic',
-    marginTop: 2,
-  },
-  handleSub: {
-    color: Colors.textSecondary,
-    fontStyle: 'normal',
-    fontWeight: '600',
-  },
-  statsRow: {
-    flexDirection: 'row',
-    backgroundColor: Colors.background,
-    borderRadius: 0,
-    padding: 20,
-    justifyContent: 'space-around',
-    marginBottom: 30,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  statItem: {
-    alignItems: 'center',
-  },
-  statValue: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: Colors.text,
-  },
-  statLabel: {
-    fontSize: 12,
-    color: Colors.textSecondary,
-    marginTop: 4,
-  },
-  menuList: {
-    gap: 2,
-  },
-  menuItem: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
-    backgroundColor: Colors.surfaceSecondary,
-    borderRadius: 0,
-    gap: 16,
+    gap: 6
   },
-  menuItemContent: {
-    flex: 1,
-  },
-  menuItemTitle: {
-    fontSize: 16,
-    fontWeight: '300',
-    color: Colors.text,
-  },
-  menuItemSub: {
-    fontSize: 12,
-    color: Colors.textSecondary,
-    marginTop: 2,
-  },
-  calibrationContainer: {
-    backgroundColor: Colors.surfaceSecondary,
-    padding: 16,
-    marginBottom: 30,
-    borderWidth: 1,
+  rankNowActionText: { color: 'white', fontSize: 11, fontWeight: '800', textTransform: 'uppercase' },
+
+  calibrationInfo: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    gap: 8, 
+    backgroundColor: Colors.surfaceSecondary, 
+    padding: 12, 
+    borderWidth: 1, 
     borderColor: Colors.border,
+    marginBottom: 20
   },
-  calibrationTitle: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: Colors.primary,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-    marginBottom: 12,
-  },
-  calibrationBarContainer: {
-    height: 6,
-    backgroundColor: Colors.background,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    marginBottom: 8,
-  },
-  calibrationBar: {
-    height: '100%',
-    backgroundColor: Colors.primary,
-  },
-  calibrationSub: {
-    fontSize: 12,
-    color: Colors.textSecondary,
-    fontWeight: '300',
-  },
+  calibrationInfoText: { fontSize: 12, color: Colors.textSecondary, fontWeight: '400' },
+
+  emptyState: { alignItems: 'center', marginTop: 60, paddingHorizontal: 40 },
+  emptyText: { fontSize: 18, fontWeight: '300', color: Colors.text, textAlign: 'center' },
+  emptySub: { fontSize: 14, color: Colors.textSecondary, textAlign: 'center', marginTop: 10, fontWeight: '300' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  modalDismiss: { flex: 1 },
+  modalContent: { backgroundColor: Colors.background, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, minHeight: height * 0.7 },
+  modalHandle: { width: 40, height: 4, backgroundColor: Colors.border, borderRadius: 2, alignSelf: 'center', marginBottom: 24 },
+  profileHeader: { flexDirection: 'row', alignItems: 'center', gap: 16, marginBottom: 30 },
+  avatarLarge: { width: 64, height: 64, borderRadius: 8, backgroundColor: Colors.surfaceSecondary, borderWidth: 1, borderColor: Colors.border, justifyContent: 'center', alignItems: 'center' },
+  avatarTextLarge: { color: Colors.text, fontSize: 24, fontWeight: '800' },
+  modalWordRow: { flexDirection: 'row', alignItems: 'baseline', gap: 8 },
+  profileName: { fontSize: 24, fontWeight: '800', color: Colors.text },
+  profilePart: { fontSize: 12, color: Colors.primary, fontStyle: 'italic' },
+  handleSub: { color: Colors.textSecondary, fontStyle: 'normal', fontWeight: '400' },
+  statsRow: { flexDirection: 'row', backgroundColor: Colors.surfaceSecondary, padding: 16, justifyContent: 'space-around', marginBottom: 30, borderWidth: 1, borderColor: Colors.border },
+  statItem: { alignItems: 'center' },
+  statValue: { fontSize: 18, fontWeight: '800', color: Colors.text },
+  statLabel: { fontSize: 12, color: Colors.textSecondary, marginTop: 4 },
+  menuList: { gap: 2 },
+  menuItem: { flexDirection: 'row', alignItems: 'center', padding: 16, backgroundColor: Colors.surfaceSecondary, borderRadius: 0, gap: 16 },
+  menuItemContent: { flex: 1 },
+  menuItemTitle: { fontSize: 16, fontWeight: '300', color: Colors.text },
+  menuItemSub: { fontSize: 12, color: Colors.textSecondary, marginTop: 2 },
 });

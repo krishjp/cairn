@@ -1,7 +1,9 @@
 import logging
 from typing import Optional, Tuple
-from shapely.geometry import LineString
 from geoalchemy2.shape import to_shape
+from geoalchemy2.elements import WKBElement, WKTElement
+from shapely import wkt
+from shapely.geometry import LineString
 from sqlmodel import Session, select
 from sqlalchemy import func
 from app.models.models import Activity, CanonicalRoute
@@ -11,6 +13,19 @@ from app.core.config import settings
 from app.services.geometry import project_to_metric, transform
 
 logger = logging.getLogger(__name__)
+
+
+def _to_shapely(element) -> LineString:
+    """Safely convert a GeoAlchemy2 element or WKT string to a Shapely shape."""
+    if isinstance(element, (WKBElement, WKTElement)):
+        return to_shape(element)
+    if isinstance(element, str):
+        try:
+            return wkt.loads(element)
+        except Exception as e:
+            logger.error(f"Failed to load WKT string: {e}")
+            raise
+    return element
 
 
 def calculate_overlap(
@@ -62,13 +77,14 @@ def _match_activity_to_route_with_session(
         return None
 
     # Convert activity geometry to Shapely
-    activity_shape = to_shape(activity.raw_polyline)
+    activity_shape = _to_shapely(activity.raw_polyline)
 
     # Find candidate routes using a spatial filter (casting to geography for meters)
+    # We use ST_GeomFromText because raw_polyline might be a string during the first sync
     candidates_statement = select(CanonicalRoute).where(
         func.ST_DWithin(
             func.ST_Transform(CanonicalRoute.geometry, 3857),
-            func.ST_Transform(activity.raw_polyline, 3857),
+            func.ST_Transform(func.ST_GeomFromText(activity.raw_polyline, 4326), 3857),
             settings.MATCH_SEARCH_RADIUS_METERS,
         )
     )
@@ -78,7 +94,7 @@ def _match_activity_to_route_with_session(
     max_overlap = 0.0
 
     for route in candidates:
-        route_shape = to_shape(route.geometry)
+        route_shape = _to_shapely(route.geometry)
         overlap = calculate_overlap(activity_shape, route_shape)
 
         if overlap > max_overlap:

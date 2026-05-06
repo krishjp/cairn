@@ -105,6 +105,17 @@ class Activity(SQLModel, table=True):
     raw_polyline: str = Field(
         sa_column=Column(Geometry("LINESTRING", srid=4326), nullable=False)
     )
+    name: Optional[str] = Field(default=None, sa_column=Column(Text, nullable=True))
+    sport_type: Optional[str] = Field(default=None, sa_column=Column(Text, nullable=True))
+    distance: Optional[float] = Field(default=None, sa_column=Column(Float, nullable=True))
+    moving_time: Optional[int] = Field(default=None, sa_column=Column(BigInteger, nullable=True))
+    start_date: Optional[datetime] = Field(
+        default=None, sa_column=Column(DateTime, nullable=True)
+    )
+    is_ignored: bool = Field(default=False)
+    notes: Optional[str] = Field(default=None)
+    reactions_count: int = Field(default=0)
+    comments_count: int = Field(default=0)
     canonical_route_id: Optional[int] = Field(
         default=None, foreign_key="canonical_routes.id"
     )

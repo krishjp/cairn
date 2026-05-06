@@ -1,14 +1,15 @@
 from fastapi import APIRouter, Depends, Query, Request, HTTPException
 from fastapi.responses import RedirectResponse
-from sqlmodel import Session, select
+from sqlmodel import Session, select, or_
 from app.core.db import get_session
 from app.core.config import settings
 from app.services import strava as strava_service
 from app.services.strava import get_activity_stream, stream_to_wkt
 from app.services.matching import match_activity_to_route
-from app.models.models import User, Activity, StravaAccount
+from app.models.models import User, Activity, StravaAccount, Follow
 import uuid
 import logging
+from datetime import datetime
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -80,7 +81,9 @@ async def sync_activities(user_id: uuid.UUID, session: Session = Depends(get_ses
         raise HTTPException(status_code=400, detail="Strava account not linked")
 
     try:
+        logger.info(f"Starting sync for user {user_id}")
         activities = strava_service.get_recent_activities(strava_acc.access_token)
+        logger.info(f"Found {len(activities)} recent activities from Strava")
         synced_count = 0
 
         for act in activities:
@@ -89,29 +92,139 @@ async def sync_activities(user_id: uuid.UUID, session: Session = Depends(get_ses
             existing = session.exec(
                 select(Activity).where(Activity.strava_activity_id == str(activity_id))
             ).first()
+            
             if existing:
+                # Update social stats even if activity exists
+                existing.reactions_count = act.get("kudos_count", 0)
+                existing.comments_count = act.get("comment_count", 0)
+                session.add(existing)
+
+                # If it exists but hasn't matched a trail yet, and it's not ignored, try matching again
+                if not existing.canonical_route_id and not existing.is_ignored:
+                    if existing.sport_type in ["Hike", "Walk"]:
+                        logger.info(f"Re-attempting match for activity {activity_id}")
+                        match_activity_to_route(existing.id, session=session)
                 continue
 
+            logger.info(f"Processing new activity {activity_id} ({act.get('type')})")
+            
             # Fetch stream and process
             stream_data = get_activity_stream(activity_id, strava_acc.access_token)
             wkt = stream_to_wkt(stream_data)
 
             if wkt:
+                # Parse start date
+                start_date = None
+                if act.get("start_date"):
+                    try:
+                        start_date = datetime.fromisoformat(act.get("start_date").replace('Z', '+00:00'))
+                    except Exception:
+                        pass
+
                 new_activity = Activity(
                     user_id=user_id,
                     strava_activity_id=str(activity_id),
                     raw_polyline=wkt,
+                    name=act.get("name"),
+                    sport_type=act.get("sport_type") or act.get("type"),
+                    distance=act.get("distance"),
+                    moving_time=act.get("moving_time"),
+                    start_date=start_date,
+                    notes=act.get("description"),
+                    reactions_count=act.get("kudos_count", 0),
+                    comments_count=act.get("comment_count", 0)
                 )
                 session.add(new_activity)
                 session.flush()
-                match_activity_to_route(new_activity.id, session=session)
+                
+                # Only attempt matching for hiking activities
+                if new_activity.sport_type in ["Hike", "Walk"]:
+                    match_activity_to_route(new_activity.id, session=session)
+                
                 synced_count += 1
 
         session.commit()
         return {"status": "ok", "synced": synced_count}
     except Exception as e:
-        logger.error(f"Sync Error: {e}")
+        logger.exception(f"Sync Error for user {user_id}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/activities")
+async def get_user_activities(
+    user_id: uuid.UUID, 
+    limit: int = 20, 
+    only_matched: bool = True,
+    session: Session = Depends(get_session)
+):
+    """Fetch a user's activities from the local database."""
+    stmt = (
+        select(Activity)
+        .where(Activity.user_id == user_id)
+        .where(Activity.is_ignored == False)
+    )
+    
+    if only_matched:
+        stmt = stmt.where(Activity.canonical_route_id != None)
+        
+    stmt = stmt.order_by(Activity.start_date.desc()).limit(limit)
+    
+    activities = session.exec(stmt).all()
+    
+    result = []
+    for act in activities:
+        act_dict = act.dict()
+        if "raw_polyline" in act_dict:
+            del act_dict["raw_polyline"]
+            
+        if act.canonical_route:
+            act_dict["trail_name"] = act.canonical_route.name
+        result.append(act_dict)
+        
+    return result
+
+
+@router.get("/feed")
+async def get_social_feed(
+    user_id: uuid.UUID,
+    limit: int = 20,
+    session: Session = Depends(get_session)
+):
+    """Fetch a social feed for the user, including their own and friends' activities."""
+    # 1. Get IDs of users being followed
+    friend_ids_stmt = select(Follow.followed_id).where(Follow.follower_id == user_id, Follow.status == "accepted")
+    friend_ids = session.exec(friend_ids_stmt).all()
+    
+    # 2. Include the user's own ID
+    relevant_user_ids = [user_id] + list(friend_ids)
+    
+    # 3. Fetch matched hiking activities from these users
+    stmt = (
+        select(Activity)
+        .where(Activity.user_id.in_(relevant_user_ids))
+        .where(Activity.canonical_route_id != None)
+        .where(Activity.is_ignored == False)
+        .order_by(Activity.start_date.desc())
+        .limit(limit)
+    )
+    activities = session.exec(stmt).all()
+    
+    result = []
+    for act in activities:
+        act_dict = act.dict()
+        if "raw_polyline" in act_dict:
+            del act_dict["raw_polyline"]
+            
+        act_dict["user_name"] = act.user.display_name
+        if act.canonical_route:
+            act_dict["trail_name"] = act.canonical_route.name
+            # Ensure rating is on a 0-10 scale
+            raw_rating = act.canonical_route.rating_score
+            act_dict["global_rating"] = raw_rating / 100.0 if raw_rating > 100 else raw_rating
+            
+        result.append(act_dict)
+        
+    return result
 
 
 @router.get("/webhook")
@@ -139,8 +252,6 @@ async def webhook_listener(request: Request, session: Session = Depends(get_sess
         activity_id = data.get("object_id")
         strava_athlete_id = data.get("owner_id")
 
-        # We should use a background task here, but for now we'll call a service
-        # get user via strava account
         strava_stmt = select(StravaAccount).where(
             StravaAccount.strava_id == strava_athlete_id
         )
@@ -149,22 +260,38 @@ async def webhook_listener(request: Request, session: Session = Depends(get_sess
         if strava_acc and strava_acc.access_token:
             user = strava_acc.user
             try:
-                # fetch activity stream
+                act_data = strava_service.get_activity(activity_id, strava_acc.access_token)
                 stream_data = get_activity_stream(activity_id, strava_acc.access_token)
                 wkt = stream_to_wkt(stream_data)
 
                 if wkt:
-                    # save activity
+                    start_date = None
+                    if act_data.get("start_date"):
+                        try:
+                            start_date = datetime.fromisoformat(act_data.get("start_date").replace('Z', '+00:00'))
+                        except Exception:
+                            pass
+
                     new_activity = Activity(
                         user_id=user.id,
-                        strava_activity_id=activity_id,
+                        strava_activity_id=str(activity_id),
                         raw_polyline=wkt,
+                        name=act_data.get("name"),
+                        sport_type=act_data.get("sport_type") or act_data.get("type"),
+                        distance=act_data.get("distance"),
+                        moving_time=act_data.get("moving_time"),
+                        start_date=start_date,
+                        notes=act_data.get("description"),
+                        reactions_count=act_data.get("kudos_count", 0),
+                        comments_count=act_data.get("comment_count", 0)
                     )
                     session.add(new_activity)
-                    session.commit()
+                    session.flush()
 
-                    # try matching
-                    match_activity_to_route(new_activity.id, session=session)
+                    if new_activity.sport_type in ["Hike", "Walk"]:
+                        match_activity_to_route(new_activity.id, session=session)
+                        
+                    session.commit()
             except Exception as e:
                 logger.error(f"Error processing webhook activity: {e}")
     return {"status": "ok"}

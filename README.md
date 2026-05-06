@@ -61,14 +61,21 @@ Trails are ranked using a Bradley-Terry model implemented via an Elo-based updat
 *   **Global Ranking:** A community-wide consensus score stored on the canonical route.
 
 #### Calibration Phase
-New users enter a **Calibration Phase** where their profile remains private until they have ranked at least **10 trails**. This ensures that personal profiles reflect a meaningful baseline of preferences before being shared with the "Mountain Circle."
+New users enter a **Calibration Phase** where their personal rankings are only visible once they have ranked at least **5 trails**. This ensures that leaderboards reflect a meaningful baseline of preferences before scores are revealed.
+
+### 3. Social Feed & Engagement
+The **Mountain Circle** feed aggregates hiking activities from the user and their followed friends, matched against Canonical Routes.
+*   **Rich Metrics:** Captures Strava descriptions, kudos (reactions), and comments directly into the feed.
+*   **Unified Aesthetic:** Both the feed and personal rankings share a premium "Dictionary-Style" card design with defined borders.
+*   **Real-Time Sync:** Dashboard refreshes automatically when returning from calibration sessions.
 
 ## UI & Design Philosophy
 
 Cairn follows a premium **"Dictionary-Style"** aesthetic:
-*   **Minimalist Interface:** Sharp lines, architectural layouts, and a nature-inspired color palette.
-*   **Dual Viewports:** Seamlessly toggle between your global "Mountain Circle" feed and your personal ranked list.
-*   **Deep Filtering:** Refine trail views by Distance, **Elevation Gain**, Location (City/Region), and Difficulty.
+*   **Dictionary-Style UI:** Sharp lines, architectural layouts, and a nature-inspired dark mode palette.
+*   **Dual Viewports:** Seamlessly toggle between your global "Mountain Circle" feed and your personal "My Rankings" list.
+*   **Anchored Comparisons:** To build your hierarchy, new trails are always compared against already-ranked "baseline" trails.
+*   **First-Hike Baseline:** Establishing your very first hike as a 10/10 baseline is a one-click process.
 *   **Contextual Splash:** Architectural loading screens that define the platform's core philosophy.
 
 ## Setup and Installation
@@ -92,7 +99,18 @@ Ensure Docker is running and execute:
 ```bash
 docker compose up -d
 docker compose exec backend python -m app.db_init
+docker compose exec backend python -m app.migrate_social # Apply latest social schema
 ```
+
+### 3. Useful Developer Commands
+*   **Wipe Rankings:** Reset all comparison history and personal scores for testing:
+    ```bash
+    docker compose exec backend python -m app.wipe_rankings
+    ```
+*   **Seed Mock Data:** Populate the feed with social activities:
+    ```bash
+    docker compose exec backend python -m app.seed_mock_data
+    ```
 
 ### 3. Frontend Setup (Mobile & Web)
 The app is built with Expo and can be run on iOS, Android, or Web.

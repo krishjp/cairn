@@ -1,12 +1,55 @@
-import React from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, SafeAreaView, ScrollView } from 'react-native';
+import React, { useState } from 'react';
+import { StyleSheet, Text, View, TouchableOpacity, ScrollView, ActivityIndicator, Alert, SafeAreaView } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
 import { Colors } from '../../constants/Colors';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 
+const API_URL = process.env.EXPO_PUBLIC_API_URL;
+
 export default function Settings() {
-  const { preferences, updatePreferences } = useAuth();
+  const { user, signOut } = useAuth();
+  const [isSyncing, setIsSyncing] = useState(false);
+
+  const handleSync = async () => {
+    if (!user?.id) return;
+    
+    setIsSyncing(true);
+    try {
+      const response = await fetch(`${API_URL}/api/v1/strava/sync?user_id=${user.id}`, {
+        method: 'POST',
+        headers: {
+          'ngrok-skip-browser-warning': 'true',
+        },
+      });
+      
+      const data = await response.json();
+      
+      if (response.ok) {
+        Alert.alert("Sync Complete", `Successfully synced ${data.synced} new activities.`);
+      } else {
+        throw new Error(data.detail || "Failed to sync");
+      }
+    } catch (error: any) {
+      Alert.alert("Sync Failed", error.message);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  const handleSignOut = () => {
+    Alert.alert(
+      "Sign Out",
+      "Are you sure you want to sign out?",
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Sign Out", style: "destructive", onPress: () => {
+          signOut();
+          router.replace('/');
+        }}
+      ]
+    );
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -14,37 +57,58 @@ export default function Settings() {
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color={Colors.text} />
         </TouchableOpacity>
-        <View style={styles.headerTitleRow}>
-          <Text style={styles.headerWord}>settings</Text>
-        </View>
+        <Text style={styles.title}>Settings</Text>
+        <View style={{ width: 24 }} />
       </View>
 
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.section}>
-          <Text style={styles.sectionLabel}>Account</Text>
-          
-          <TouchableOpacity style={styles.settingItem}>
-            <View style={styles.settingInfo}>
-              <Text style={styles.settingTitle}>Privacy Mode</Text>
-              <Text style={styles.settingSub}>Hide your activities from the global feed</Text>
-            </View>
-            <View style={styles.toggle}>
-              <View style={styles.toggleCircle} />
-            </View>
-          </TouchableOpacity>
+          <Text style={styles.sectionTitle}>Account</Text>
+          <View style={styles.item}>
+            <Text style={styles.itemLabel}>User</Text>
+            <Text style={styles.itemValue}>{user?.name || 'Explorer'}</Text>
+          </View>
+        </View>
 
-          <TouchableOpacity style={styles.settingItem}>
-            <View style={styles.settingInfo}>
-              <Text style={styles.settingTitle}>Units</Text>
-              <Text style={styles.settingSub}>Metric (km, m)</Text>
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Integrations</Text>
+          <TouchableOpacity 
+            style={styles.syncCard} 
+            onPress={handleSync}
+            disabled={isSyncing}
+          >
+            <View style={styles.syncLeft}>
+              <View style={styles.stravaIcon}>
+                <Ionicons name="flash" size={20} color="white" />
+              </View>
+              <View>
+                <Text style={styles.syncTitle}>Strava Sync</Text>
+                <Text style={styles.syncSub}>Pull latest hiking activities</Text>
+              </View>
             </View>
-            <Ionicons name="chevron-forward" size={18} color={Colors.border} />
+            {isSyncing ? (
+              <ActivityIndicator color={Colors.primary} />
+            ) : (
+              <Ionicons name="chevron-forward" size={20} color={Colors.textSecondary} />
+            )}
           </TouchableOpacity>
         </View>
 
-        <View style={styles.footer}>
-          <Text style={styles.versionText}>Cairn v1.0.0</Text>
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>App</Text>
+          <TouchableOpacity style={styles.menuItem}>
+            <Text style={styles.menuText}>Privacy Policy</Text>
+            <Ionicons name="chevron-forward" size={18} color={Colors.textSecondary} />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.menuItem}>
+            <Text style={styles.menuText}>Terms of Service</Text>
+            <Ionicons name="chevron-forward" size={18} color={Colors.textSecondary} />
+          </TouchableOpacity>
         </View>
+
+        <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
+          <Text style={styles.signOutText}>Sign Out</Text>
+        </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
   );
@@ -56,95 +120,107 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
   },
   header: {
-    paddingHorizontal: 24,
-    paddingVertical: 20,
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-  },
-  backButton: {
-    padding: 4,
-  },
-  headerTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    gap: 8,
-  },
-  headerWord: {
-    fontSize: 32,
-    fontWeight: '300',
-    color: Colors.text,
-    letterSpacing: -1,
-  },
-  headerPhonetic: {
-    fontSize: 14,
-    color: Colors.textSecondary,
-    fontWeight: '300',
-  },
-  content: {
-    padding: 24,
-  },
-  section: {
-    marginBottom: 40,
-  },
-  sectionLabel: {
-    fontSize: 12,
-    color: Colors.primary,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-    marginBottom: 16,
-  },
-  settingItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 16,
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 15,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
   },
-  settingInfo: {
-    flex: 1,
-    paddingRight: 20,
+  backButton: {
+    padding: 5,
   },
-  settingTitle: {
-    fontSize: 16,
-    fontWeight: '500',
+  title: {
+    fontSize: 18,
+    fontWeight: '700',
     color: Colors.text,
   },
-  settingSub: {
+  content: {
+    padding: 20,
+  },
+  section: {
+    marginBottom: 30,
+  },
+  sectionTitle: {
     fontSize: 13,
+    fontWeight: '600',
     color: Colors.textSecondary,
-    marginTop: 4,
-    fontWeight: '300',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginBottom: 15,
+    marginLeft: 5,
   },
-  toggle: {
-    width: 44,
-    height: 24,
-    borderRadius: 0,
-    backgroundColor: Colors.surfaceSecondary,
-    padding: 2,
+  item: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
   },
-  toggleActive: {
-    backgroundColor: 'rgba(67, 160, 71, 0.4)',
+  itemLabel: {
+    fontSize: 16,
+    color: Colors.text,
   },
-  toggleCircle: {
-    width: 20,
-    height: 20,
-    borderRadius: 0,
-    backgroundColor: Colors.textSecondary,
+  itemValue: {
+    fontSize: 16,
+    color: Colors.textSecondary,
   },
-  toggleCircleActive: {
-    backgroundColor: Colors.primary,
-    alignSelf: 'flex-end',
+  syncCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    padding: 16,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
-  footer: {
-    marginTop: 20,
+  syncLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 15,
+  },
+  stravaIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#FC6100',
+    justifyContent: 'center',
     alignItems: 'center',
   },
-  versionText: {
+  syncTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: Colors.text,
+  },
+  syncSub: {
     fontSize: 12,
-    color: Colors.border,
-    fontWeight: '500',
+    color: Colors.textSecondary,
+    marginTop: 2,
+  },
+  menuItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  menuText: {
+    fontSize: 16,
+    color: Colors.text,
+  },
+  signOutButton: {
+    marginTop: 20,
+    paddingVertical: 15,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#FF5252',
+    alignItems: 'center',
+  },
+  signOutText: {
+    color: '#FF5252',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });

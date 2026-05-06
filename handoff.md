@@ -15,19 +15,19 @@
 The project has transitioned into a functional "Dictionary-Style" platform with a stable identity system and a refined ranking engine.
 
 ### Completed Tasks:
-- [x] **New Rating System**: Migrated from 1000 Elo to a human-readable **1.00 - 10.00 scale**.
-- [x] **Calibration Phase**: Users now have a "Calibrating" status until they rank **10 hikes**.
-- [x] **Dual Viewport Feed**: Users can toggle between the global "Mountain Circle" and their personal "My Rankings" list.
-- [x] **Deep Filtering**: Implemented a filter drawer for Distance, **Elevation Gain**, and Location.
-- [x] **Dictionary Aesthetic**: Implemented a premium, minimalist architectural UI with a focus on typography.
-- [x] **Static Tunnel Stabilization**: Configured ngrok with pooling and skip-headers to ensure reliable development connectivity.
-- [x] **Phonetics (Splash Only)**: Automated phonetic generation was tested but moved exclusively to the Splash screen to keep the main UI clean.
+- [x] **New Rating System**: Migrated to a human-readable **1.00 - 10.00 scale**.
+- [x] **Calibration Phase**: Threshold refined to **5 ranked hikes** for personal list visibility.
+- [x] **Ranking UI**: Implemented a side-by-side pairwise comparison screen with **Anchored Matching**.
+- [x] **First-Hike Baseline**: Implemented a "Quick Rank" workflow for the first hike.
+- [x] **Social Feed Integration**: Added reactions, comments, and notes with a unified card aesthetic.
+- [x] **Dual Viewport Feed**: Toggle between "Mountain Circle" and "My Rankings".
+- [x] **Auto-Refresh Dashboard**: Used `useFocusEffect` to sync rankings immediately.
+- [x] **Unit Conversion**: Fixed consistency for Distance (mi) and Elevation (ft).
 
 ### Verified State:
 - `docker-compose up` runs successfully.
 - `npm run web` launches the frontend.
 - Backend and DB correctly handle UUID-based user identities and 1-10 rating scores.
-- Ngrok tunnel is currently experiencing a conflict with a home session (Mac); see Troubleshooting.
 
 ## 4. Key Configuration Files
 - `backend/app/core/config.py`: Contains rating system constants (`INITIAL_ELO_RATING=5.0`).
@@ -37,9 +37,9 @@ The project has transitioned into a functional "Dictionary-Style" platform with 
 
 ## 5. Next Steps
 1. **Filter Integration**: Connect the frontend filter chips to backend query parameters in `routes/search`.
-2. **Ranking UI**: Build the pairwise "Trail Choice" screen where users actually perform the rankings that drive the calibration bar.
-3. **Strava Webhook Logic**: Finalize the activity-to-canonical route matching logic now that User IDs are UUIDs.
-4. **Unit Preferences**: Implement the Metric/Imperial toggle in the Settings page.
+2. **Activity Detail View**: Implement a drill-down view for deep dives into specific hike metadata and maps.
+3. **Friend Verification**: Add a screen to promote unknown activities to Canonical Routes or ignore them.
+4. **Global Leaderboard Visualization**: Add a "Mountain Circle" graph visualization to the landing page.
 
 ## 6. Troubleshooting
 - **Ngrok Conflict**: If the `cairn-ngrok-1` container fails with `ERR_NGROK_334`, ensure all other ngrok sessions using the `comrade-devotion-divinity` domain are terminated (check other devices/Macs).

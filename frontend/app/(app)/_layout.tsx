@@ -17,6 +17,8 @@ export default function AppLayout() {
       }}
     >
       <Stack.Screen name="dashboard" />
+      <Stack.Screen name="settings" />
+      <Stack.Screen name="ranking" />
     </Stack>
   );
 }
