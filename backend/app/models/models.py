@@ -31,6 +31,7 @@ class User(SQLModel, table=True):
     display_name: Optional[str] = Field(
         default=None, sa_column=Column(Text, nullable=True)
     )
+    username: str = Field(sa_column=Column(Text, unique=True, index=True, nullable=False))
     is_private: bool = Field(default=False)
     is_admin: bool = Field(default=False)
 

@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlmodel import Session, select, func, text
+from sqlmodel import Session, select, func, text, or_
 from typing import Optional
 from app.core.db import get_session
 from app.models.models import (
@@ -499,12 +499,16 @@ def get_route_detail(
         for rating, name in session.exec(friend_reviews).all()
     ]
 
-    global_reviews = (
+    global_reviews_stmt = (
         select(UserRouteRating, User.display_name)
         .join(User, User.id == UserRouteRating.user_id)
         .where(
             UserRouteRating.canonical_route_id == route_id,
             UserRouteRating.public_comment.is_not(None),
+            or_(
+                User.is_private == False,
+                User.id.in_(relevant_user_ids)
+            )
         )
         .order_by(UserRouteRating.last_ranked_at.desc())
         .limit(10)
@@ -516,7 +520,7 @@ def get_route_detail(
             "date": rating.last_ranked_at,
             "rating": round(rating.rating_score, 2),
         }
-        for rating, name in session.exec(global_reviews).all()
+        for rating, name in session.exec(global_reviews_stmt).all()
     ]
 
     return {

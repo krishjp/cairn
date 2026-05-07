@@ -6,9 +6,9 @@ from shapely.geometry import LineString
 
 def test_promote_activity(session: Session, client):
     # Setup User and Activity
-    user = User(display_name="Promoter")
+    user = User(display_name="Promoter", username="promoter")
     session.add(user)
-    session.commit()
+    session.flush()
 
     # Create a long activity (0 to 1 degree is ~111km)
     # So trimming 50m should be a tiny fraction
@@ -19,7 +19,7 @@ def test_promote_activity(session: Session, client):
         raw_polyline=from_shape(line, srid=4326),
     )
     session.add(activity)
-    session.commit()
+    session.flush()
 
     # Call Promotion API
     # Note: We use the client fixture from conftest

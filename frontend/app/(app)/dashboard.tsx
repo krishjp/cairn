@@ -9,7 +9,7 @@ import { router, useFocusEffect } from 'expo-router';
 const { width, height } = Dimensions.get('window');
 
 export default function Dashboard() {
-  const { user, token, signOut } = useAuth();
+  const { user, token, signOut, signIn } = useAuth();
   const [showProfile, setShowProfile] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
@@ -24,6 +24,11 @@ export default function Dashboard() {
   const [unmatchedActivities, setUnmatchedActivities] = useState<any[]>([]);
   const [showScores, setShowScores] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [requestCount, setRequestCount] = useState(0);
+  const [mockName, setMockName] = useState('');
+  const [sentCount, setSentCount] = useState(0);
+  const [followingCount, setFollowingCount] = useState(0);
+  const [followersCount, setFollowersCount] = useState(0);
 
   // Matching Modal State
   const [isMatchModalVisible, setIsMatchModalVisible] = useState(false);
@@ -42,6 +47,7 @@ export default function Dashboard() {
         } else {
           fetchUserRankings();
         }
+        fetchRequestCount();
       }
     }, [user, viewMode])
   );
@@ -115,6 +121,72 @@ export default function Dashboard() {
       setShowScores(false);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const fetchRequestCount = async () => {
+    if (!token) return;
+    try {
+      // Fetch incoming requests
+      const reqResponse = await fetch(
+        `${process.env.EXPO_PUBLIC_API_URL}/api/v1/users/requests`,
+        { 
+          headers: { 
+            'ngrok-skip-browser-warning': 'true',
+            'Authorization': `Bearer ${token}`
+          } 
+        }
+      );
+      const reqData = await reqResponse.json();
+      if (Array.isArray(reqData)) {
+        setRequestCount(reqData.length);
+      }
+
+      // Fetch friends/following/sent
+      const friendsResponse = await fetch(
+        `${process.env.EXPO_PUBLIC_API_URL}/api/v1/users/friends`,
+        { 
+          headers: { 
+            'ngrok-skip-browser-warning': 'true',
+            'Authorization': `Bearer ${token}`
+          } 
+        }
+      );
+      const friendsData = await friendsResponse.json();
+      if (friendsData) {
+        setFollowingCount(friendsData.following?.length || 0);
+        setFollowersCount(friendsData.followers?.length || 0);
+        setSentCount(friendsData.sent?.length || 0);
+      }
+    } catch (err) {
+      console.error("Failed to fetch social stats:", err);
+    }
+  };
+
+  const handleMockLogin = async () => {
+    if (!mockName.trim() || !token) return;
+    try {
+      const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/api/v1/auth/mock-login?display_name=${encodeURIComponent(mockName)}`, {
+        method: 'POST',
+        headers: {
+          'ngrok-skip-browser-warning': 'true',
+          'Authorization': `Bearer ${token}`
+        },
+      });
+      const data = await response.json();
+      if (data.status === 'success') {
+        setShowProfile(false);
+        signIn({
+          id: data.user.id,
+          name: data.user.display_name,
+          username: data.user.username,
+          isAdmin: data.user.is_admin,
+          isPrivate: data.user.is_private,
+          token: data.token,
+        });
+      }
+    } catch (error) {
+      console.error('Mock login failed:', error);
     }
   };
 
@@ -383,6 +455,7 @@ export default function Dashboard() {
             >
               <View style={styles.avatarMini}>
                 <Text style={styles.avatarTextMini}>{user?.name?.[0] || 'U'}</Text>
+                {requestCount > 0 && <View style={styles.notificationDot} />}
               </View>
             </TouchableOpacity>
           </View>
@@ -400,11 +473,11 @@ export default function Dashboard() {
               <Text style={styles.headerWord}>{viewMode === 'feed' ? 'feed' : 'rankings'}</Text>
             </View>
             <Text style={styles.headerPart}>noun • <Text style={styles.subheading}>{viewMode === 'feed' ? 'Trail feed' : 'My personal list'}</Text></Text>
-            <Text style={styles.headerDefinition}>
-              {viewMode === 'feed'
-                ? 'a real-time stream of trail activities and rankings from your mountain circle.'
-                : 'your personal collection of trekked trails, ordered by your preference.'}
-            </Text>
+            {viewMode === 'feed' && (
+              <Text style={styles.headerDefinition}>
+                a real-time stream of trail activities and rankings from your mountain circle.
+              </Text>
+            )}
           </View>
 
           {/* View Switcher */}
@@ -428,7 +501,7 @@ export default function Dashboard() {
             <View style={styles.searchInputWrapper}>
               <Ionicons name="search-outline" size={20} color={Colors.textSecondary} />
               <TextInput
-                style={styles.searchInput}
+                style={[styles.searchInput, { outlineStyle: 'none' } as any]}
                 placeholder="search trails..."
                 placeholderTextColor={Colors.textSecondary}
                 value={searchQuery}
@@ -549,7 +622,7 @@ export default function Dashboard() {
             <View style={styles.matchSearchInputWrapper}>
               <Ionicons name="search-outline" size={20} color={Colors.textSecondary} />
               <TextInput
-                style={styles.matchSearchInput}
+                style={[styles.matchSearchInput, { outlineStyle: 'none' } as any]}
                 placeholder="search trail database..."
                 placeholderTextColor={Colors.textSecondary}
                 value={matchSearchQuery}
@@ -606,26 +679,61 @@ export default function Dashboard() {
                 <View style={styles.modalWordRow}>
                   <Text style={styles.profileName}>{user?.name || 'Explorer'}</Text>
                 </View>
-                <Text style={styles.profilePart}>noun • <Text style={styles.handleSub}>@{(user?.name || 'explorer').toLowerCase().replace(' ', '')}</Text></Text>
+                <Text style={styles.profilePart}>hiker • <Text style={styles.handleSub}>@{user?.username}</Text></Text>
               </View>
             </View>
 
             <View style={styles.statsRow}>
-              <View style={styles.statItem}>
-                <Text style={styles.statValue}>124</Text>
-                <Text style={styles.statLabel}>Friends</Text>
-              </View>
-              <View style={styles.statItem}>
-                <Text style={styles.statValue}>8</Text>
+              <TouchableOpacity 
+                style={styles.statItem}
+                onPress={() => {
+                  setShowProfile(false);
+                  router.push('/following');
+                }}
+              >
+                <Text style={styles.statValue}>{followingCount}</Text>
+                <Text style={styles.statLabel}>Following</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={styles.statItem}
+                onPress={() => {
+                  setShowProfile(false);
+                  router.push('/followers');
+                }}
+              >
+                <Text style={styles.statValue}>{followersCount}</Text>
+                <Text style={styles.statLabel}>Followers</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={styles.statItem}
+                onPress={() => {
+                  setShowProfile(false);
+                  router.push('/requests');
+                }}
+              >
+                <Text style={styles.statValue}>{requestCount}/{sentCount}</Text>
                 <Text style={styles.statLabel}>Requests</Text>
-              </View>
-              <View style={styles.statItem}>
-                <Text style={styles.statValue}>{mockRankingCount >= 10 ? mockRankingCount : `${mockRankingCount}/10`}</Text>
-                <Text style={styles.statLabel}>{mockRankingCount >= 10 ? 'Trails Ranked' : 'Calibration'}</Text>
-              </View>
+              </TouchableOpacity>
             </View>
 
             <View style={styles.menuList}>
+              {user?.isAdmin && (
+                <View style={styles.devPortal}>
+                  <Text style={styles.devTitle}>developer portal</Text>
+                  <View style={styles.mockInputRow}>
+                    <TextInput
+                      style={[styles.mockInput, { outlineStyle: 'none' } as any]}
+                      placeholder="Mock Hiker Name..."
+                      value={mockName}
+                      onChangeText={setMockName}
+                      placeholderTextColor={Colors.textSecondary}
+                    />
+                    <TouchableOpacity style={styles.mockButton} onPress={handleMockLogin}>
+                      <Ionicons name="swap-horizontal" size={18} color="white" />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
               <TouchableOpacity style={styles.menuItem}>
                 <Ionicons name="logo-octocat" size={22} color={Colors.text} />
                 <View style={styles.menuItemContent}>
@@ -633,6 +741,21 @@ export default function Dashboard() {
                   <Text style={styles.menuItemSub}>View your full profile</Text>
                 </View>
                 <Ionicons name="open-outline" size={18} color={Colors.border} />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.menuItem}
+                onPress={() => {
+                  setShowProfile(false);
+                  router.push('/find_friends');
+                }}
+              >
+                <Ionicons name="people-outline" size={22} color={Colors.primary} />
+                <View style={styles.menuItemContent}>
+                  <Text style={styles.menuItemTitle}>find hikers</Text>
+                  <Text style={styles.menuItemSub}>Grow your community</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={Colors.border} />
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -671,8 +794,19 @@ const styles = StyleSheet.create({
   logoTouch: { padding: 4 },
   navRight: { flexDirection: 'row', alignItems: 'center', gap: 15 },
   profileTrigger: { padding: 4 },
-  avatarMini: { width: 32, height: 32, borderRadius: 4, backgroundColor: Colors.surfaceSecondary, borderWidth: 1, borderColor: Colors.border, justifyContent: 'center', alignItems: 'center' },
+  avatarMini: { width: 32, height: 32, borderRadius: 4, backgroundColor: Colors.surfaceSecondary, borderWidth: 1, borderColor: Colors.border, justifyContent: 'center', alignItems: 'center', position: 'relative' },
   avatarTextMini: { color: Colors.text, fontSize: 14, fontWeight: '700' },
+  notificationDot: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: Colors.primary,
+    borderWidth: 2,
+    borderColor: Colors.background,
+  },
   scrollContent: { paddingHorizontal: 24, paddingTop: 10, paddingBottom: 40 },
   dictionaryHeader: { marginBottom: 20 },
   wordRow: { flexDirection: 'row', alignItems: 'baseline', gap: 12 },
@@ -687,7 +821,7 @@ const styles = StyleSheet.create({
   switchTextActive: { color: Colors.text, fontWeight: '700' },
   searchAndFilter: { flexDirection: 'row', gap: 12, marginBottom: 12, zIndex: 10 },
   searchInputWrapper: { flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surfaceSecondary, paddingHorizontal: 12, height: 44, borderWidth: 1, borderColor: Colors.border, gap: 8 },
-  searchInput: { flex: 1, color: Colors.text, fontSize: 15, fontWeight: '300', outlineWidth: 0, outlineStyle: 'none', borderWidth: 0 } as any,
+  searchInput: { flex: 1, color: Colors.text, fontSize: 15, fontWeight: '300', outlineStyle: 'none', borderWidth: 0 } as any,
   filterButton: { width: 44, height: 44, backgroundColor: Colors.surfaceSecondary, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: Colors.border },
   filterButtonActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
   filtersDrawer: { marginBottom: 12 },
@@ -802,7 +936,7 @@ const styles = StyleSheet.create({
   matchModalTitle: { fontSize: 28, fontWeight: '300', color: Colors.text, letterSpacing: -1 },
   matchModalSub: { fontSize: 14, color: Colors.textSecondary, marginBottom: 20, fontStyle: 'italic' },
   matchSearchInputWrapper: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surfaceSecondary, paddingHorizontal: 12, height: 48, borderWidth: 1, borderColor: Colors.border, gap: 8, marginBottom: 16 },
-  matchSearchInput: { flex: 1, color: Colors.text, fontSize: 16, fontWeight: '300', outlineWidth: 0, outlineStyle: 'none', borderWidth: 0 } as any,
+  matchSearchInput: { flex: 1, color: Colors.text, fontSize: 16, fontWeight: '300', outlineStyle: 'none', borderWidth: 0 } as any,
   matchSearchResultsList: { maxHeight: 300 },
   matchResultItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 0.5, borderBottomColor: Colors.border },
   matchResultName: { fontSize: 16, color: Colors.text, fontWeight: '400' },
@@ -843,4 +977,41 @@ const styles = StyleSheet.create({
   menuItemContent: { flex: 1 },
   menuItemTitle: { fontSize: 16, fontWeight: '300', color: Colors.text },
   menuItemSub: { fontSize: 12, color: Colors.textSecondary, marginTop: 2 },
+  devPortal: {
+    padding: 16,
+    backgroundColor: 'rgba(67, 160, 71, 0.05)',
+    borderWidth: 1,
+    borderColor: 'rgba(67, 160, 71, 0.2)',
+    marginBottom: 16,
+  },
+  devTitle: {
+    fontSize: 10,
+    fontFamily: 'Outfit-Bold',
+    color: Colors.primary,
+    textTransform: 'uppercase',
+    letterSpacing: 1.5,
+    marginBottom: 10,
+  },
+  mockInputRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  mockInput: {
+    flex: 1,
+    height: 40,
+    backgroundColor: Colors.background,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    paddingHorizontal: 12,
+    color: Colors.text,
+    fontSize: 14,
+    fontFamily: 'Outfit-Light',
+  },
+  mockButton: {
+    backgroundColor: Colors.primary,
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
 });

@@ -55,8 +55,21 @@ async def callback(
 
         if not strava_acc:
             # Create user first
+            display_name = f"{athlete.get('firstname', '')} {athlete.get('lastname', '')}".strip()
+            base_username = display_name.lower().replace(" ", "")
+            if not base_username:
+                base_username = "hiker"
+            
+            # Ensure uniqueness
+            username = base_username
+            count = 1
+            while session.exec(select(User).where(User.username == username)).first():
+                username = f"{base_username}{count}"
+                count += 1
+
             user = User(
-                display_name=f"{athlete.get('firstname', '')} {athlete.get('lastname', '')}".strip(),
+                display_name=display_name,
+                username=username,
             )
             session.add(user)
             session.flush()
@@ -78,8 +91,10 @@ async def callback(
 
         # Redirect back to the app/web using the provided state as target
         separator = "&" if "?" in state else "?"
+        # Redirect back to the app/web with ONLY the token and status
+        # This is safer as the frontend will fetch the full profile using the token.
         return RedirectResponse(
-            url=f"{state}{separator}status=success&name={user.display_name}&id={user.id}&token={access_token}"
+            url=f"{state}{separator}status=success&token={access_token}"
         )
     except Exception as e:
         logger.error(f"OAuth Error: {e}")
@@ -206,24 +221,25 @@ async def get_user_activities(
 
 
 @router.get("/feed")
-async def get_social_feed(
+def get_social_feed(
     limit: int = 20,
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
     """Fetch a social feed for the user, including their own and friends' activities."""
+    from sqlalchemy.orm import joinedload
+    
     # Get IDs of users being followed
     friend_ids_stmt = select(Follow.followed_id).where(
         Follow.follower_id == current_user.id, Follow.status == "accepted"
     )
     friend_ids = session.exec(friend_ids_stmt).all()
-
-    # Include the user's own ID
     relevant_user_ids = [current_user.id] + list(friend_ids)
 
-    # Fetch matched hiking activities, ordered by when they were LAST RANKED, then by start date.
+    # Fetch activities with eager loading of user and route
     stmt = (
         select(Activity)
+        .options(joinedload(Activity.user), joinedload(Activity.canonical_route))
         .outerjoin(
             UserRouteRating,
             (UserRouteRating.canonical_route_id == Activity.canonical_route_id)
@@ -240,23 +256,34 @@ async def get_social_feed(
     )
     activities = session.exec(stmt).all()
 
+    # Pre-fetch all relevant ratings to avoid N+1 queries
+    route_user_pairs = [(act.user_id, act.canonical_route_id) for act in activities if act.canonical_route_id]
+    ratings_dict = {}
+    if route_user_pairs:
+        # Complex multi-column IN query for SQLModel/SQLAlchemy
+        from sqlalchemy import tuple_
+        ratings_stmt = select(UserRouteRating).where(
+            tuple_(UserRouteRating.user_id, UserRouteRating.canonical_route_id).in_(route_user_pairs)
+        )
+        ratings = session.exec(ratings_stmt).all()
+        ratings_dict = {(r.user_id, r.canonical_route_id): r for r in ratings}
+
     result = []
     for act in activities:
         act_dict = act.model_dump(exclude={"raw_polyline"})
-
+        
         # Privacy: Remove Strava notes from public feed
         if "notes" in act_dict:
             del act_dict["notes"]
 
         act_dict["user_name"] = act.user.display_name
-
-        # Get public comment from rating
-        rating = session.get(UserRouteRating, (act.user_id, act.canonical_route_id))
+        
+        # Get public comment from pre-fetched ratings
+        rating = ratings_dict.get((act.user_id, act.canonical_route_id))
         act_dict["public_comment"] = rating.public_comment if rating else None
 
         if act.canonical_route:
             act_dict["trail_name"] = act.canonical_route.name
-            # Ensure rating is on a 0-10 scale
             raw_rating = act.canonical_route.rating_score
             act_dict["global_rating"] = (
                 raw_rating / 100.0 if raw_rating > 100 else raw_rating

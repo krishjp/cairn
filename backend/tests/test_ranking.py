@@ -23,7 +23,7 @@ def test_record_comparison_trueskill(session: Session):
         rating_sigma=settings.RANKING_INITIAL_SIGMA,
         rating_score=5.0,
     )
-    user = User(display_name="Voter")
+    user = User(display_name="Voter", username="voter")
     session.add(r1)
     session.add(r2)
     session.add(user)
@@ -74,7 +74,7 @@ def test_record_comparison_multiple_votes(session: Session):
         rating_mu=5.0,
         rating_sigma=1.0,
     )
-    user = User(display_name="Frequent Voter")
+    user = User(display_name="Frequent Voter", username="freq_voter")
     session.add_all([r1, r2, user])
     session.commit()
 

@@ -19,6 +19,10 @@ export default function AppLayout() {
       <Stack.Screen name="dashboard" />
       <Stack.Screen name="settings" />
       <Stack.Screen name="ranking" />
+      <Stack.Screen name="following" />
+      <Stack.Screen name="followers" />
+      <Stack.Screen name="requests" />
+      <Stack.Screen name="find_friends" />
     </Stack>
   );
 }

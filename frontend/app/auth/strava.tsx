@@ -44,22 +44,40 @@ export default function StravaAuth() {
       if (result.type === 'success' && result.url) {
         const url = new URL(result.url);
         const status = url.searchParams.get('status');
-        const name = url.searchParams.get('name');
-        const id = url.searchParams.get('id');
         const token = url.searchParams.get('token');
 
-        if (status === 'success') {
-          // Update the global auth state
-          signIn({ 
-            id: id || '', 
-            name: name || 'Explorer',
-            token: token || undefined
-          });
-          
-          Alert.alert("Success", `Connected as ${name || 'Athlete'}`);
-          
-          // Navigate to the dashboard
-          router.replace('/(app)/dashboard');
+        if (status === 'success' && token) {
+          // Now fetch the actual profile securely using the token
+          try {
+            const profileResponse = await fetch(`${API_URL}/api/v1/users/me`, {
+              headers: {
+                'ngrok-skip-browser-warning': 'true',
+                'Authorization': `Bearer ${token}`
+              }
+            });
+            
+            if (!profileResponse.ok) throw new Error('Failed to fetch profile');
+            
+            const profileData = await profileResponse.json();
+            
+            // Update the global auth state
+            signIn({ 
+              id: profileData.id, 
+              name: profileData.display_name || 'Explorer',
+              username: profileData.username,
+              token: token,
+              isAdmin: profileData.is_admin,
+              isPrivate: profileData.is_private
+            });
+            
+            Alert.alert("Success", `Connected as ${profileData.display_name || 'Athlete'}`);
+            
+            // Navigate to the dashboard
+            router.replace('/(app)/dashboard');
+          } catch (profileErr) {
+            console.error('Profile fetch failed:', profileErr);
+            throw new Error('Authenticated but failed to retrieve profile');
+          }
         } else {
           throw new Error('Authentication failed');
         }

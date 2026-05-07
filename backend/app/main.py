@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.api.v1.endpoints import strava, admin, ranking, users, routes
+from app.api.v1.endpoints import strava, admin, ranking, users, routes, auth
 from app.core.config import settings
 import logging
 
@@ -38,4 +38,7 @@ app.include_router(
 app.include_router(users.router, prefix=f"{settings.API_V1_STR}/users", tags=["users"])
 app.include_router(
     routes.router, prefix=f"{settings.API_V1_STR}/routes", tags=["routes"]
+)
+app.include_router(
+    auth.router, prefix=f"{settings.API_V1_STR}/auth", tags=["auth"]
 )

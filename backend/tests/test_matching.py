@@ -30,7 +30,7 @@ def test_calculate_overlap_partial_match():
 
 def test_match_activity_to_route(session: Session):
     # create a test user
-    user = User(display_name="Test User", strava_id=999)
+    user = User(display_name="Test User", strava_id=999, username="matching_user")
     session.add(user)
     session.commit()
 

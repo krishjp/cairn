@@ -33,19 +33,23 @@ def client_fixture(session: Session):
         # Return the first user in the session or a dummy one
         all_users = session.exec(select(User)).all()
         if all_users:
-            user = all_users[-1]
+            user = all_users[0]
             return user
 
-        user = User(display_name="Test User", id=uuid.uuid4())
+        user = User(
+            display_name="Test User", 
+            id=uuid.uuid4(), 
+            username=f"testuser_{uuid.uuid4().hex[:8]}"
+        )
         session.add(user)
-        session.commit()
+        session.flush()
         return user
 
     def mock_get_current_admin_user():
         user = mock_get_current_user()
         user.is_admin = True
         session.add(user)
-        session.commit()
+        session.flush()
         return user
 
     app.dependency_overrides[get_session] = get_session_override

@@ -207,7 +207,7 @@ export default function Ranking() {
             )}
           </View>
           <TextInput
-            style={styles.commentInput}
+            style={[styles.commentInput, { outlineStyle: 'none' } as any]}
             placeholder="Share your thoughts on this trail..."
             placeholderTextColor={Colors.textSecondary}
             multiline

@@ -1,11 +1,12 @@
+import pytest
 from app.models.models import User, Follow, CanonicalRoute
 from sqlmodel import Session
 from app.services.ranking import record_comparison
 
 
 def test_follow_user(session: Session):
-    u1 = User(display_name="User 1")
-    u2 = User(display_name="User 2")
+    u1 = User(display_name="User 1", username="user1")
+    u2 = User(display_name="User 2", username="user2")
     session.add(u1)
     session.add(u2)
     session.commit()
@@ -19,17 +20,18 @@ def test_follow_user(session: Session):
     assert u1.following[0].id == u2.id
 
 
-def test_private_follow_approval(session: Session):
-    u1 = User(display_name="Requester")
-    u2 = User(display_name="Private User", is_private=True)
+@pytest.mark.anyio
+async def test_private_follow_approval(session: Session):
+    u1 = User(display_name="Requester", username="requester")
+    u2 = User(display_name="Private User", username="private", is_private=True)
     session.add(u1)
     session.add(u2)
     session.commit()
 
     # request follow
-    from app.api.v1.endpoints.users import follow_user, approve_follow
+    from app.api.v1.endpoints.users import follow_user, approve_request
 
-    res = follow_user(target_id=u2.id, session=session, current_user=u1)
+    res = await follow_user(user_id=u2.id, session=session, current_user=u1)
     assert res["status"] == "pending"
 
     # verify u1 is NOT yet following u2
@@ -37,7 +39,7 @@ def test_private_follow_approval(session: Session):
     assert len(u1.following) == 0
 
     # approve follow
-    approve_follow(follower_id=u1.id, session=session, current_user=u2)
+    await approve_request(follower_id=u1.id, session=session, current_user=u2)
 
     # verify u1 IS now following u2
     session.refresh(u1)
@@ -47,8 +49,8 @@ def test_private_follow_approval(session: Session):
 
 def test_friends_leaderboard(session: Session):
     # Setup users and relationships
-    me = User(display_name="Me")
-    friend = User(display_name="Friend")
+    me = User(display_name="Me", username="me")
+    friend = User(display_name="Friend", username="friend")
     session.add(me)
     session.add(friend)
     session.commit()

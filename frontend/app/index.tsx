@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { StyleSheet, Text, View, TouchableOpacity, ScrollView, Animated, Dimensions, SafeAreaView } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, ScrollView, Animated, Dimensions, SafeAreaView, TextInput } from 'react-native';
 import { router } from 'expo-router';
 import { Colors } from '../constants/Colors';
 import { CairnLogo } from '../components/CairnLogo';
@@ -10,16 +10,20 @@ import { PoweredByStrava } from '../components/PoweredByStrava';
 const { height } = Dimensions.get('window');
 
 export default function Home() {
-  const { user, isLoading } = useAuth();
   const [showSplash, setShowSplash] = useState(true);
+  const [mockName, setMockName] = useState('');
+  const { signIn, user, isLoading } = useAuth();
   const fadeAnim = useRef(new Animated.Value(1)).current;
   const contentFadeAnim = useRef(new Animated.Value(0)).current;
 
+  const segments = require('expo-router').useSegments();
+
   useEffect(() => {
-    if (!isLoading && user) {
+    // Only redirect if we are on the landing page (segments empty)
+    if (!isLoading && user && segments.length === 0) {
       router.replace('/(app)/dashboard');
     }
-  }, [user, isLoading]);
+  }, [user, isLoading, segments]);
 
   useEffect(() => {
     // Splash sequence

@@ -8,7 +8,7 @@ import { router } from 'expo-router';
 const API_URL = process.env.EXPO_PUBLIC_API_URL;
 
 export default function Settings() {
-  const { user, token, signOut } = useAuth();
+  const { user, token, signOut, signIn } = useAuth();
   const [isSyncing, setIsSyncing] = useState(false);
 
   const handleSync = async () => {
@@ -80,6 +80,49 @@ export default function Settings() {
     }
   };
 
+  const [localIsPrivate, setLocalIsPrivate] = useState(user?.isPrivate);
+
+  // Sync local state when global user state changes
+  React.useEffect(() => {
+    setLocalIsPrivate(user?.isPrivate);
+  }, [user?.isPrivate]);
+
+  const handleTogglePrivacy = async () => {
+    const newValue = !localIsPrivate;
+    setLocalIsPrivate(newValue); 
+    
+    try {
+      const response = await fetch(`${API_URL}/api/v1/users/me`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'ngrok-skip-browser-warning': 'true',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ is_private: newValue })
+      });
+      
+      if (response.ok) {
+        const updatedUser = await response.json();
+        signIn({
+          id: updatedUser.id,
+          name: updatedUser.display_name,
+          username: updatedUser.username,
+          isAdmin: updatedUser.is_admin,
+          isPrivate: updatedUser.is_private,
+          token: token 
+        });
+      } else {
+        // Revert if failed
+        setLocalIsPrivate(!newValue);
+        Alert.alert("Error", "Failed to update privacy settings.");
+      }
+    } catch (error) {
+      console.error('Failed to update privacy:', error);
+      setLocalIsPrivate(!newValue);
+    }
+  };
+
   const handleSignOut = () => {
     Alert.alert(
       "Sign Out",
@@ -110,6 +153,22 @@ export default function Settings() {
           <View style={styles.item}>
             <Text style={styles.itemLabel}>User</Text>
             <Text style={styles.itemValue}>{user?.name || 'Explorer'}</Text>
+          </View>
+          <View style={styles.item}>
+            <Text style={styles.itemLabel}>Handle</Text>
+            <Text style={styles.itemValue}>@{user?.username}</Text>
+          </View>
+          <View style={styles.item}>
+            <View>
+              <Text style={styles.itemLabel}>Private Account</Text>
+              <Text style={styles.itemSub}>Only approved followers can see your trails.</Text>
+            </View>
+            <TouchableOpacity 
+              onPress={handleTogglePrivacy}
+              style={[styles.toggle, localIsPrivate && styles.toggleActive]}
+            >
+              <View style={[styles.toggleKnob, localIsPrivate && styles.toggleKnobActive]} />
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -229,6 +288,33 @@ const styles = StyleSheet.create({
   itemValue: {
     fontSize: 16,
     color: Colors.textSecondary,
+  },
+  itemSub: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    marginTop: 2,
+  },
+  toggle: {
+    width: 50,
+    height: 24,
+    backgroundColor: Colors.surfaceSecondary,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: 2,
+    justifyContent: 'center',
+  },
+  toggleActive: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+  },
+  toggleKnob: {
+    width: 18,
+    height: 18,
+    backgroundColor: Colors.textSecondary,
+  },
+  toggleKnobActive: {
+    backgroundColor: 'white',
+    marginLeft: 26, // Manual shift instead of transform for stability in some RN environments
   },
   syncCard: {
     backgroundColor: Colors.surface,
