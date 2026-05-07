@@ -23,9 +23,9 @@ def search_routes(q: str, session: Session = Depends(get_session)):
 
 @router.post("/bookmark/{route_id}")
 def toggle_bookmark(
-    route_id: int, 
+    route_id: int,
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """Toggle a bookmark for a trail."""
     stmt = select(Bookmark).where(
@@ -47,10 +47,12 @@ def toggle_bookmark(
 @router.get("/bookmarks")
 def get_bookmarks(
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """List all bookmarked trails for the current user."""
-    stmt = select(CanonicalRoute).join(Bookmark).where(Bookmark.user_id == current_user.id)
+    stmt = (
+        select(CanonicalRoute).join(Bookmark).where(Bookmark.user_id == current_user.id)
+    )
     results = session.exec(stmt).all()
     return [{"id": r.id, "name": r.name, "rating": r.rating_score} for r in results]
 
@@ -62,7 +64,7 @@ def promote_activity(
     trim_start_m: float = 50.0,
     trim_end_m: float = 50.0,
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """
     Promotes a user activity to a new Canonical Route.

@@ -23,6 +23,7 @@ def session_fixture():
 from app.api.deps import get_current_user, get_current_admin_user
 from app.models.models import User
 
+
 @pytest.fixture(name="client")
 def client_fixture(session: Session):
     def get_session_override():
@@ -34,7 +35,7 @@ def client_fixture(session: Session):
         if all_users:
             user = all_users[-1]
             return user
-            
+
         user = User(display_name="Test User", id=uuid.uuid4())
         session.add(user)
         session.commit()
@@ -50,7 +51,7 @@ def client_fixture(session: Session):
     app.dependency_overrides[get_session] = get_session_override
     app.dependency_overrides[get_current_user] = mock_get_current_user
     app.dependency_overrides[get_current_admin_user] = mock_get_current_admin_user
-    
+
     client = TestClient(app)
     yield client
     app.dependency_overrides.clear()

@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     POSTGRES_PASSWORD: str = "cairn_password"
     POSTGRES_DB: str = "cairn_db"
     DATABASE_URL: str = "postgresql://cairn_user:cairn_password@db:5432/cairn_db"
-    
+
     # JWT Settings
     SECRET_KEY: str = "your-secret-key-for-development-change-in-prod"
     ALGORITHM: str = "HS256"
@@ -39,7 +39,9 @@ class Settings(BaseSettings):
     NGROK_AUTHTOKEN: Optional[str] = None
     NGROK_URL: Optional[str] = None
 
-    model_config = SettingsConfigDict(env_file=".env", case_sensitive=True, extra="ignore")
+    model_config = SettingsConfigDict(
+        env_file=".env", case_sensitive=True, extra="ignore"
+    )
 
 
 settings = Settings()

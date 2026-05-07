@@ -11,9 +11,9 @@ router = APIRouter()
 
 @router.post("/follow/{target_id}")
 def follow_user(
-    target_id: uuid.UUID, 
+    target_id: uuid.UUID,
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """Follow another user. If target is private, create a pending request."""
     if current_user.id == target_id:
@@ -40,7 +40,7 @@ def follow_user(
 @router.get("/pending-requests", response_model=List[uuid.UUID])
 def get_pending_requests(
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """Get IDs of users who have requested to follow you."""
     statement = select(Follow.follower_id).where(
@@ -51,9 +51,9 @@ def get_pending_requests(
 
 @router.post("/approve/{follower_id}")
 def approve_follow(
-    follower_id: uuid.UUID, 
+    follower_id: uuid.UUID,
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """Approve a pending follow request."""
     follow = session.get(Follow, (follower_id, current_user.id))
@@ -69,9 +69,9 @@ def approve_follow(
 
 @router.patch("/privacy")
 def update_privacy(
-    is_private: bool, 
+    is_private: bool,
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """Update user privacy settings."""
     current_user.is_private = is_private

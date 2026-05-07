@@ -10,7 +10,6 @@ from app.models.models import (
     Follow,
     Comparison,
 )
-import uuid
 import random
 from datetime import datetime
 from app.api.deps import get_current_user
@@ -35,9 +34,9 @@ def get_leaderboard(limit: int = 20, session: Session = Depends(get_session)):
 
 @router.get("/personal-leaderboard")
 def get_personal_leaderboard(
-    limit: int = 20, 
+    limit: int = 20,
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """
     Get the user's personal ranking of trails.
@@ -58,7 +57,10 @@ def get_personal_leaderboard(
     # Get matched trail IDs
     matched_routes_stmt = (
         select(Activity.canonical_route_id)
-        .where(Activity.user_id == current_user.id, Activity.canonical_route_id.is_not(None))
+        .where(
+            Activity.user_id == current_user.id,
+            Activity.canonical_route_id.is_not(None),
+        )
         .distinct()
     )
     matched_route_ids = session.exec(matched_routes_stmt).all()
@@ -108,7 +110,10 @@ def get_personal_leaderboard(
         # Find the most recent activity for this route to get metrics
         activity_stmt = (
             select(Activity)
-            .where(Activity.user_id == current_user.id, Activity.canonical_route_id == route.id)
+            .where(
+                Activity.user_id == current_user.id,
+                Activity.canonical_route_id == route.id,
+            )
             .order_by(Activity.start_date.desc())
             .limit(1)
         )
@@ -124,6 +129,9 @@ def get_personal_leaderboard(
                 "moving_time": latest_activity.moving_time if latest_activity else 0,
                 "start_date": latest_activity.start_date if latest_activity else None,
                 "notes": latest_activity.notes if latest_activity else None,
+                "public_comment": session.get(
+                    UserRouteRating, (current_user.id, route.id)
+                ).public_comment,
             }
         )
 
@@ -131,7 +139,10 @@ def get_personal_leaderboard(
     for route, _ in unranked_results:
         activity_stmt = (
             select(Activity)
-            .where(Activity.user_id == current_user.id, Activity.canonical_route_id == route.id)
+            .where(
+                Activity.user_id == current_user.id,
+                Activity.canonical_route_id == route.id,
+            )
             .order_by(Activity.start_date.desc())
             .limit(1)
         )
@@ -163,7 +174,7 @@ def get_personal_leaderboard(
 def get_next_pair(
     fixed_route_id: Optional[int] = Query(None),
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """
     Suggests the next two trails for a user to compare.
@@ -200,15 +211,32 @@ def get_next_pair(
     ranked_stmt = (
         select(CanonicalRoute, UserRouteRating)
         .join(UserRouteRating)
-        .where(UserRouteRating.user_id == current_user.id, CanonicalRoute.id != fixed_route_id)
+        .where(
+            UserRouteRating.user_id == current_user.id,
+            CanonicalRoute.id != fixed_route_id,
+        )
     )
     ranked_results = session.exec(ranked_stmt).all()
 
     if not ranked_results:
-        # SPECIAL CASE: This is the user's first hike being ranked
+        # Get latest activity notes for route_a to show to user
+        act_stmt = (
+            select(Activity)
+            .where(
+                Activity.user_id == current_user.id,
+                Activity.canonical_route_id == route_a.id,
+            )
+            .order_by(Activity.start_date.desc())
+            .limit(1)
+        )
+        latest_act = session.exec(act_stmt).first()
+
         return {
             "status": "FIRST_HIKE",
-            "route_a": route_a.model_dump(exclude={"geometry"}),
+            "route_a": {
+                **route_a.model_dump(exclude={"geometry"}),
+                "strava_notes": latest_act.notes if latest_act else None,
+            },
         }
 
     # Get rating for Hike A to use as base for match quality
@@ -249,7 +277,10 @@ def get_next_pair(
 
     return {
         "status": "COMPARE",
-        "route_a": route_a.model_dump(exclude={"geometry"}),
+        "route_a": {
+            **route_a.model_dump(exclude={"geometry"}),
+            "strava_notes": latest_act.notes if latest_act else None,
+        },
         "route_b": best_b.model_dump(exclude={"geometry"}),
         "match_quality": round(best_match_quality, 3),
     }
@@ -264,8 +295,9 @@ def get_next_pair(
 def initialize_with_bucket(
     route_id: int,
     bucket: int,  # 1, 2, or 3
+    public_comment: Optional[str] = None,
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """Sets the initial score for a hike based on the selected bucket."""
     # Check if already ranked
@@ -293,6 +325,7 @@ def initialize_with_bucket(
         rating_mu=prior["mu"],
         rating_sigma=prior["sigma"],
         last_ranked_at=datetime.utcnow(),
+        public_comment=public_comment,
     )
     session.add(rating)
     session.commit()
@@ -304,7 +337,7 @@ def post_vote(
     winner_id: int,
     loser_id: int,
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """
     Records a comparison and updates scores using TrueSkill Bayesian logic.
@@ -359,7 +392,7 @@ def post_vote(
 @router.get("/friends-leaderboard")
 def get_friends_leaderboard(
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """
     Get a leaderboard showing trails ranked by your friends.
@@ -401,7 +434,7 @@ def get_friends_leaderboard(
 def get_route_detail(
     route_id: int,
     session: Session = Depends(get_session),
-    current_user: Optional[User] = Depends(get_current_user)
+    current_user: Optional[User] = Depends(get_current_user),
 ):
     """
     Returns detailed info about a specific route, including:
@@ -441,57 +474,49 @@ def get_route_detail(
         circle_avg, circle_count = session.exec(circle_stmt).one()
 
     # Reviews (using notes from Activities)
-    relevant_user_ids = [current_user.id] + list(friend_ids) if current_user else list(friend_ids)
-    
+    relevant_user_ids = (
+        [current_user.id] + list(friend_ids) if current_user else list(friend_ids)
+    )
+
     friend_reviews = (
-        select(Activity, User.display_name, UserRouteRating.rating_score)
-        .join(User, User.id == Activity.user_id)
-        .outerjoin(
-            UserRouteRating,
-            (UserRouteRating.user_id == Activity.user_id)
-            & (UserRouteRating.canonical_route_id == Activity.canonical_route_id),
-        )
+        select(UserRouteRating, User.display_name)
+        .join(User, User.id == UserRouteRating.user_id)
         .where(
-            Activity.canonical_route_id == route_id,
-            Activity.user_id.in_(relevant_user_ids),
-            Activity.notes.is_not(None),
+            UserRouteRating.canonical_route_id == route_id,
+            UserRouteRating.user_id.in_(relevant_user_ids),
+            UserRouteRating.public_comment.is_not(None),
         )
-        .order_by(Activity.start_date.desc())
+        .order_by(UserRouteRating.last_ranked_at.desc())
         .limit(10)
     )
     friends_list = [
         {
             "user": name,
-            "text": act.notes,
-            "date": act.start_date,
-            "rating": round(score, 2) if score else None,
+            "text": rating.public_comment,
+            "date": rating.last_ranked_at,
+            "rating": round(rating.rating_score, 2),
         }
-        for act, name, score in session.exec(friend_reviews).all()
+        for rating, name in session.exec(friend_reviews).all()
     ]
 
     global_reviews = (
-        select(Activity, User.display_name, UserRouteRating.rating_score)
-        .join(User, User.id == Activity.user_id)
-        .outerjoin(
-            UserRouteRating,
-            (UserRouteRating.user_id == Activity.user_id)
-            & (UserRouteRating.canonical_route_id == Activity.canonical_route_id),
-        )
+        select(UserRouteRating, User.display_name)
+        .join(User, User.id == UserRouteRating.user_id)
         .where(
-            Activity.canonical_route_id == route_id,
-            Activity.notes.is_not(None),
+            UserRouteRating.canonical_route_id == route_id,
+            UserRouteRating.public_comment.is_not(None),
         )
-        .order_by(Activity.start_date.desc())
+        .order_by(UserRouteRating.last_ranked_at.desc())
         .limit(10)
     )
     global_list = [
         {
             "user": name,
-            "text": act.notes,
-            "date": act.start_date,
-            "rating": round(score, 2) if score else None,
+            "text": rating.public_comment,
+            "date": rating.last_ranked_at,
+            "rating": round(rating.rating_score, 2),
         }
-        for act, name, score in session.exec(global_reviews).all()
+        for rating, name in session.exec(global_reviews).all()
     ]
 
     return {

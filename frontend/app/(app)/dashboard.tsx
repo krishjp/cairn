@@ -87,7 +87,7 @@ export default function Dashboard() {
       if (data) {
         if (data.routes) {
           // Sort so unranked (is_ranked = false) are always at the top
-          const sorted = data.routes.sort((a, b) => {
+          const sorted = data.routes.sort((a: any, b: any) => {
             if (a.is_ranked === b.is_ranked) return 0;
             return a.is_ranked ? 1 : -1;
           });
@@ -253,10 +253,14 @@ export default function Dashboard() {
       <View style={styles.cardHeader}>
         <TouchableOpacity 
           style={styles.trailTitleRow} 
-          onPress={() => item.canonical_route_id && router.push(`/route/${item.canonical_route_id}`)}
+          onPress={() => {
+            const routeId = item.canonical_route_id || item.id;
+            if (routeId && !isStaging) {
+              router.push(`/route/${routeId}`);
+            }
+          }}
         >
           <Text style={styles.trailNameText}>{item.trail_name || item.name}</Text>
-          <Ionicons name="chevron-forward" size={14} color={Colors.textSecondary} style={{ marginLeft: 4 }} />
         </TouchableOpacity>
         <View style={[styles.ratingBadge, isStaging && { borderColor: Colors.border }]}>
           <Text style={[styles.ratingValueText, isStaging && { color: Colors.textSecondary }]}>
@@ -298,11 +302,11 @@ export default function Dashboard() {
         )}
       </View>
 
-      {item.notes && (
+      {(isRankView ? (item.public_comment || item.notes) : item.public_comment) ? (
         <Text style={styles.activityNotes} numberOfLines={2}>
-          "{item.notes}"
+          "{isRankView ? (item.public_comment || item.notes) : item.public_comment}"
         </Text>
-      )}
+      ) : null}
 
       <View style={styles.cardFooter}>
         <View style={styles.metricsGroup}>

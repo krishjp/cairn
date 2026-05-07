@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, SafeAreaView, ActivityIndicator, Dimensions, Animated } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, SafeAreaView, ActivityIndicator, Dimensions, Animated, TextInput } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
 import { Colors } from '../../constants/Colors';
 import { Ionicons } from '@expo/vector-icons';
@@ -16,6 +16,7 @@ export default function Ranking() {
   const [data, setData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [fadeAnim] = useState(new Animated.Value(0));
+  const [publicComment, setPublicComment] = useState('');
 
   useEffect(() => {
     if (user?.id) {
@@ -105,7 +106,7 @@ export default function Ranking() {
     if (!user?.id || !fixed_id) return;
     try {
       await fetch(
-        `${process.env.EXPO_PUBLIC_API_URL}/api/v1/ranking/initialize-with-bucket?route_id=${fixed_id}&bucket=${bucket}`,
+        `${process.env.EXPO_PUBLIC_API_URL}/api/v1/ranking/initialize-with-bucket?route_id=${fixed_id}&bucket=${bucket}&public_comment=${encodeURIComponent(publicComment)}`,
         { 
           method: 'POST',
           headers: { 
@@ -190,6 +191,35 @@ export default function Ranking() {
           <Text style={styles.headerDefinition}>
             How would you broadly categorize your experience on <Text style={{fontWeight: '700', color: Colors.text}}>{bucketHike?.name}</Text>?
           </Text>
+        </View>
+
+        <View style={styles.commentContainer}>
+          <View style={styles.commentHeaderRow}>
+            <Text style={styles.commentLabel}>Public Comment</Text>
+            {bucketHike?.strava_notes && (
+              <TouchableOpacity 
+                style={styles.copyButton}
+                onPress={() => setPublicComment(bucketHike.strava_notes)}
+              >
+                <Ionicons name="copy-outline" size={14} color={Colors.primary} />
+                <Text style={styles.copyButtonText}>Copy from Strava</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+          <TextInput
+            style={styles.commentInput}
+            placeholder="Share your thoughts on this trail..."
+            placeholderTextColor={Colors.textSecondary}
+            multiline
+            numberOfLines={3}
+            value={publicComment}
+            onChangeText={setPublicComment}
+          />
+          {bucketHike?.strava_notes && (
+            <Text style={styles.stravaNotePreview} numberOfLines={2}>
+              Strava note: "{bucketHike.strava_notes}"
+            </Text>
+          )}
         </View>
 
         <View style={styles.bucketContainer}>
@@ -406,4 +436,20 @@ const styles = StyleSheet.create({
   bucketTextContainer: { flex: 1 },
   bucketTitle: { fontSize: 20, fontWeight: '800', color: Colors.text, textTransform: 'lowercase' },
   bucketSub: { fontSize: 13, color: Colors.textSecondary, marginTop: 4, fontWeight: '300' },
+  commentContainer: { paddingHorizontal: 24, marginBottom: 24 },
+  commentHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  commentLabel: { fontSize: 12, fontWeight: '700', color: Colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5 },
+  commentInput: {
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: 12,
+    color: Colors.text,
+    fontSize: 14,
+    height: 80,
+    textAlignVertical: 'top',
+  } as any,
+  copyButton: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  copyButtonText: { fontSize: 12, color: Colors.primary, fontWeight: '600' },
+  stravaNotePreview: { fontSize: 11, color: Colors.textSecondary, fontStyle: 'italic', marginTop: 6 },
 });

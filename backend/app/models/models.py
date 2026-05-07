@@ -17,6 +17,9 @@ class UserRouteRating(SQLModel, table=True):
         default_factory=datetime.utcnow,
         sa_column=Column(DateTime, default=datetime.utcnow, nullable=False),
     )
+    public_comment: Optional[str] = Field(
+        default=None, sa_column=Column(Text, nullable=True)
+    )
 
     user: "User" = Relationship(back_populates="route_ratings")
     canonical_route: "CanonicalRoute" = Relationship(back_populates="user_ratings")
@@ -97,7 +100,9 @@ class CanonicalRoute(SQLModel, table=True):
     rating_score: float = Field(default=5.0, sa_column=Column(Float, nullable=False))
     rating_mu: float = Field(default=5.0, sa_column=Column(Float, nullable=False))
     rating_sigma: float = Field(default=1.5, sa_column=Column(Float, nullable=False))
-    description: Optional[str] = Field(default=None, sa_column=Column(Text, nullable=True))
+    description: Optional[str] = Field(
+        default=None, sa_column=Column(Text, nullable=True)
+    )
     images: Optional[list] = Field(default=None, sa_column=Column(JSON, nullable=True))
 
     activities: List["Activity"] = Relationship(back_populates="canonical_route")

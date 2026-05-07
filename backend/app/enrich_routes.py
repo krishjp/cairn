@@ -3,6 +3,7 @@ from sqlmodel import Session, select
 from app.core.db import engine
 from app.models.models import CanonicalRoute
 
+
 def fetch_wikimedia_images(query: str, limit: int = 3):
     print(f"Searching Wikimedia for: {query}...")
     url = "https://commons.wikimedia.org/w/api.php"
@@ -14,11 +15,9 @@ def fetch_wikimedia_images(query: str, limit: int = 3):
         "gsrsearch": query,
         "gsrnamespace": 6,  # File namespace
         "iiprop": "url",
-        "gsrlimit": limit
+        "gsrlimit": limit,
     }
-    headers = {
-        "User-Agent": "CairnApp/1.0 (contact@cairn.example.com)"
-    }
+    headers = {"User-Agent": "CairnApp/1.0 (contact@cairn.example.com)"}
     try:
         response = requests.get(url, params=params, headers=headers)
         data = response.json()
@@ -33,12 +32,13 @@ def fetch_wikimedia_images(query: str, limit: int = 3):
         print(f"Error fetching images: {e}")
         return []
 
+
 def fetch_wikipedia_summary(title: str):
     print(f"Fetching summary for: {title}...")
-    url = "https://en.wikipedia.org/api/rest_v1/page/summary/" + requests.utils.quote(title)
-    headers = {
-        "User-Agent": "CairnApp/1.0 (contact@cairn.example.com)"
-    }
+    url = "https://en.wikipedia.org/api/rest_v1/page/summary/" + requests.utils.quote(
+        title
+    )
+    headers = {"User-Agent": "CairnApp/1.0 (contact@cairn.example.com)"}
     try:
         response = requests.get(url, headers=headers)
         if response.status_code == 200:
@@ -49,26 +49,27 @@ def fetch_wikipedia_summary(title: str):
         print(f"Error fetching summary: {e}")
         return None
 
+
 def enrich():
     with Session(engine) as session:
         # Get all routes that need description or images
         stmt = select(CanonicalRoute)
         routes = session.exec(stmt).all()
-        
+
         for route in routes:
             print(f"Processing {route.name}...")
-            
+
             # 1. Fetch description if missing
             if not route.description:
                 summary = fetch_wikipedia_summary(route.name)
                 if not summary:
                     # Try with "Trail" appended if not found
                     summary = fetch_wikipedia_summary(f"{route.name} Trail")
-                
+
                 if summary:
                     route.description = summary
                     print(f"  Added description for {route.name}")
-            
+
             # 2. Fetch images if missing
             if not route.images or len(route.images) == 0:
                 query = f"{route.name} Yosemite"
@@ -76,11 +77,12 @@ def enrich():
                 if images:
                     route.images = images
                     print(f"  Added {len(images)} images for {route.name}")
-            
+
             session.add(route)
-            session.commit() # Commit each to avoid losing progress
-            
+            session.commit()  # Commit each to avoid losing progress
+
     print("Enrichment complete.")
+
 
 if __name__ == "__main__":
     enrich()

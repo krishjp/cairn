@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import Optional
 from fastapi import APIRouter, Depends, Query, Request, HTTPException
 from fastapi.responses import RedirectResponse
 from sqlmodel import Session, select
@@ -7,7 +7,14 @@ from app.core.config import settings
 from app.services import strava as strava_service
 from app.services.strava import get_activity_stream, stream_to_wkt
 from app.services.matching import match_activity_to_route
-from app.models.models import User, Activity, StravaAccount, Follow, CanonicalRoute, UserRouteRating
+from app.models.models import (
+    User,
+    Activity,
+    StravaAccount,
+    Follow,
+    CanonicalRoute,
+    UserRouteRating,
+)
 from app.api.deps import get_current_user
 import uuid
 import logging
@@ -82,7 +89,7 @@ async def callback(
 @router.post("/sync")
 async def sync_activities(
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """Manually trigger a sync of recent Strava activities."""
     strava_stmt = select(StravaAccount).where(StravaAccount.user_id == current_user.id)
@@ -189,9 +196,7 @@ async def get_user_activities(
 
     result = []
     for act in activities:
-        act_dict = act.dict()
-        if "raw_polyline" in act_dict:
-            del act_dict["raw_polyline"]
+        act_dict = act.model_dump(exclude={"raw_polyline"})
 
         if act.canonical_route:
             act_dict["trail_name"] = act.canonical_route.name
@@ -202,9 +207,9 @@ async def get_user_activities(
 
 @router.get("/feed")
 async def get_social_feed(
-    limit: int = 20, 
+    limit: int = 20,
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """Fetch a social feed for the user, including their own and friends' activities."""
     # Get IDs of users being followed
@@ -228,8 +233,8 @@ async def get_social_feed(
         .where(Activity.is_ignored.is_(False))
         .where(Activity.canonical_route_id.is_not(None))
         .order_by(
-            UserRouteRating.last_ranked_at.desc().nulls_last(), 
-            Activity.start_date.desc()
+            UserRouteRating.last_ranked_at.desc().nulls_last(),
+            Activity.start_date.desc(),
         )
         .limit(limit)
     )
@@ -237,11 +242,18 @@ async def get_social_feed(
 
     result = []
     for act in activities:
-        act_dict = act.dict()
-        if "raw_polyline" in act_dict:
-            del act_dict["raw_polyline"]
+        act_dict = act.model_dump(exclude={"raw_polyline"})
+
+        # Privacy: Remove Strava notes from public feed
+        if "notes" in act_dict:
+            del act_dict["notes"]
 
         act_dict["user_name"] = act.user.display_name
+
+        # Get public comment from rating
+        rating = session.get(UserRouteRating, (act.user_id, act.canonical_route_id))
+        act_dict["public_comment"] = rating.public_comment if rating else None
+
         if act.canonical_route:
             act_dict["trail_name"] = act.canonical_route.name
             # Ensure rating is on a 0-10 scale
@@ -257,10 +269,10 @@ async def get_social_feed(
 
 @router.post("/promote")
 def promote_activity_to_route(
-    activity_id: uuid.UUID, 
-    route_id: int, 
+    activity_id: uuid.UUID,
+    route_id: int,
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """Manually match an activity to a canonical route."""
     activity = session.get(Activity, activity_id)
@@ -279,9 +291,9 @@ def promote_activity_to_route(
 
 @router.post("/ignore")
 def ignore_activity(
-    activity_id: uuid.UUID, 
+    activity_id: uuid.UUID,
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """Mark an activity as ignored."""
     activity = session.get(Activity, activity_id)
@@ -295,9 +307,9 @@ def ignore_activity(
 
 @router.post("/restore")
 def restore_activity(
-    activity_id: uuid.UUID, 
+    activity_id: uuid.UUID,
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """Un-mark an activity as ignored."""
     activity = session.get(Activity, activity_id)
@@ -312,7 +324,7 @@ def restore_activity(
 @router.get("/ignored")
 async def get_ignored_activities(
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """Fetch all ignored activities for a user."""
     stmt = (
@@ -324,9 +336,7 @@ async def get_ignored_activities(
     activities = session.exec(stmt).all()
     result = []
     for act in activities:
-        act_dict = act.dict()
-        if "raw_polyline" in act_dict:
-            del act_dict["raw_polyline"]
+        act_dict = act.model_dump(exclude={"raw_polyline"})
         result.append(act_dict)
     return result
 

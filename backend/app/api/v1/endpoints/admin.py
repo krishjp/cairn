@@ -6,16 +6,18 @@ from app.enrich_routes import enrich
 
 router = APIRouter()
 
+
 def seed_and_enrich(bbox: str):
     """Sequence seeding followed by automated enrichment."""
     seed_canonical_routes(bbox)
     enrich()
 
+
 @router.post("/seed-osm")
 async def seed_osm(
-    background_tasks: BackgroundTasks, 
+    background_tasks: BackgroundTasks,
     bbox: str = "37.70,-122.55,37.85,-122.35",
-    current_admin: User = Depends(get_current_admin_user)
+    current_admin: User = Depends(get_current_admin_user),
 ):
     """
     Trigger OSM seeding and Wikipedia enrichment as background tasks.
