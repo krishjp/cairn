@@ -3,7 +3,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 interface User {
   id: string;
   name: string;
-  // Add more fields as needed
+  token?: string;
 }
 
 interface Preferences {
@@ -16,6 +16,7 @@ interface AuthContextType {
   preferences: Preferences;
   signIn: (userData: User) => void;
   signOut: () => void;
+  token: string | null;
   updatePreferences: (prefs: Partial<Preferences>) => void;
 }
 
@@ -23,6 +24,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [preferences, setPreferences] = useState<Preferences>({
     showPhonetics: false, // Disabled by default
@@ -43,10 +45,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signIn = (userData: User) => {
     setUser(userData);
+    if (userData.token) {
+      setToken(userData.token);
+    }
   };
 
   const signOut = () => {
     setUser(null);
+    setToken(null);
   };
 
   const updatePreferences = (prefs: Partial<Preferences>) => {
@@ -54,7 +60,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, preferences, signIn, signOut, updatePreferences }}>
+    <AuthContext.Provider value={{ user, token, isLoading, preferences, signIn, signOut, updatePreferences }}>
       {children}
     </AuthContext.Provider>
   );

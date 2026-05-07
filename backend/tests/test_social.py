@@ -29,7 +29,7 @@ def test_private_follow_approval(session: Session):
     # request follow
     from app.api.v1.endpoints.users import follow_user, approve_follow
 
-    res = follow_user(user_id=u1.id, target_id=u2.id, session=session)
+    res = follow_user(target_id=u2.id, session=session, current_user=u1)
     assert res["status"] == "pending"
 
     # verify u1 is NOT yet following u2
@@ -37,7 +37,7 @@ def test_private_follow_approval(session: Session):
     assert len(u1.following) == 0
 
     # approve follow
-    approve_follow(user_id=u2.id, follower_id=u1.id, session=session)
+    approve_follow(follower_id=u1.id, session=session, current_user=u2)
 
     # verify u1 IS now following u2
     session.refresh(u1)
@@ -53,7 +53,7 @@ def test_friends_leaderboard(session: Session):
     session.add(friend)
     session.commit()
 
-    follow = Follow(follower_id=me.id, followed_id=friend.id)
+    follow = Follow(follower_id=me.id, followed_id=friend.id, status="accepted")
     session.add(follow)
 
     # Setup routes and friend's ratings
@@ -69,7 +69,7 @@ def test_friends_leaderboard(session: Session):
     # query friends leaderboard for 'me'
     from app.api.v1.endpoints.ranking import get_friends_leaderboard
 
-    results = get_friends_leaderboard(user_id=me.id, session=session)
+    results = get_friends_leaderboard(session=session, current_user=me)
 
     assert len(results) == 2
     # r1 should be first because friend ranked it higher

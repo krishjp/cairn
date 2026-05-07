@@ -22,7 +22,7 @@ const API_URL = process.env.EXPO_PUBLIC_API_URL;
 
 export default function RouteDetailScreen() {
   const { id } = useLocalSearchParams();
-  const { user } = useAuth();
+  const { user, token } = useAuth();
   const [loading, setLoading] = useState(true);
   const [route, setRoute] = useState<any>(null);
   const [viewMode, setViewMode] = useState<'friends' | 'global'>('friends');
@@ -46,13 +46,12 @@ export default function RouteDetailScreen() {
 
   const fetchRouteDetail = async () => {
     try {
-      const url = user?.id 
-        ? `${API_URL}/api/v1/ranking/route/${id}?user_id=${user.id}`
-        : `${API_URL}/api/v1/ranking/route/${id}`;
+      const url = `${API_URL}/api/v1/ranking/route/${id}`;
 
       const response = await fetch(url, {
         headers: {
           'ngrok-skip-browser-warning': 'true',
+          'Authorization': `Bearer ${token}`
         }
       });
       const data = await response.json();

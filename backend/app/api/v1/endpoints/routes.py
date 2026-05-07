@@ -2,7 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
 from app.core.db import get_session
 from app.core.config import settings
-from app.models.models import Activity, CanonicalRoute, Bookmark
+from app.models.models import Activity, CanonicalRoute, Bookmark, User
+from app.api.deps import get_current_user
 from app.services.geometry import trim_linestring_by_meters, simplify_geometry
 from geoalchemy2.shape import to_shape, from_shape
 import uuid
@@ -22,11 +23,13 @@ def search_routes(q: str, session: Session = Depends(get_session)):
 
 @router.post("/bookmark/{route_id}")
 def toggle_bookmark(
-    route_id: int, user_id: uuid.UUID, session: Session = Depends(get_session)
+    route_id: int, 
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
 ):
     """Toggle a bookmark for a trail."""
     stmt = select(Bookmark).where(
-        Bookmark.user_id == user_id, Bookmark.canonical_route_id == route_id
+        Bookmark.user_id == current_user.id, Bookmark.canonical_route_id == route_id
     )
     existing = session.exec(stmt).first()
 
@@ -35,16 +38,19 @@ def toggle_bookmark(
         session.commit()
         return {"status": "unbookmarked"}
     else:
-        new_bookmark = Bookmark(user_id=user_id, canonical_route_id=route_id)
+        new_bookmark = Bookmark(user_id=current_user.id, canonical_route_id=route_id)
         session.add(new_bookmark)
         session.commit()
         return {"status": "bookmarked"}
 
 
-@router.get("/bookmarks/{user_id}")
-def get_bookmarks(user_id: uuid.UUID, session: Session = Depends(get_session)):
-    """List all bookmarked trails for a user."""
-    stmt = select(CanonicalRoute).join(Bookmark).where(Bookmark.user_id == user_id)
+@router.get("/bookmarks")
+def get_bookmarks(
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
+    """List all bookmarked trails for the current user."""
+    stmt = select(CanonicalRoute).join(Bookmark).where(Bookmark.user_id == current_user.id)
     results = session.exec(stmt).all()
     return [{"id": r.id, "name": r.name, "rating": r.rating_score} for r in results]
 
@@ -56,6 +62,7 @@ def promote_activity(
     trim_start_m: float = 50.0,
     trim_end_m: float = 50.0,
     session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
 ):
     """
     Promotes a user activity to a new Canonical Route.
@@ -65,6 +72,9 @@ def promote_activity(
     activity = session.get(Activity, activity_id)
     if not activity:
         raise HTTPException(status_code=404, detail="Activity not found.")
+
+    if activity.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="You do not own this activity.")
 
     try:
         # Convert to Shapely and Clean

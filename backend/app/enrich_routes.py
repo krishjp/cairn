@@ -33,29 +33,53 @@ def fetch_wikimedia_images(query: str, limit: int = 3):
         print(f"Error fetching images: {e}")
         return []
 
-ENRICHMENTS = {
-    "Mist Trail": "The Mist Trail is Yosemite's signature hike. It features steep stone stairs alongside two massive waterfalls: Vernal and Nevada Fall. Prepare to get wet!",
-    "John Muir Trail": "The John Muir Trail (JMT) is a premier long-distance trail in the Sierra Nevada mountain range of California, passing through Yosemite, Ansel Adams Wilderness, and Sequoia National Parks.",
-    "Half Dome Trail": "The hike to Half Dome is one of the most iconic in the world. It culminates in a daring ascent up the cables on the sheer granite face of the dome.",
-    "Four Mile Trail": "The Four Mile Trail provides continuous steep hiking with some of the most spectacular views of Yosemite Valley, including El Capitan and Yosemite Falls.",
-    "Panorama Trail": "A beautiful trail descending from Glacier Point to Yosemite Valley, passing Illilouette Fall and offering unique views of Half Dome's back side."
-}
+def fetch_wikipedia_summary(title: str):
+    print(f"Fetching summary for: {title}...")
+    url = "https://en.wikipedia.org/api/rest_v1/page/summary/" + requests.utils.quote(title)
+    headers = {
+        "User-Agent": "CairnApp/1.0 (contact@cairn.example.com)"
+    }
+    try:
+        response = requests.get(url, headers=headers)
+        if response.status_code == 200:
+            data = response.json()
+            return data.get("extract")
+        return None
+    except Exception as e:
+        print(f"Error fetching summary: {e}")
+        return None
 
 def enrich():
     with Session(engine) as session:
-        for name, desc in ENRICHMENTS.items():
-            stmt = select(CanonicalRoute).where(CanonicalRoute.name.ilike(f"%{name}%"))
-            route = session.exec(stmt).first()
-            if route:
-                print(f"Enriching {route.name}...")
-                route.description = desc
-                # Search specifically for the trail in Yosemite
+        # Get all routes that need description or images
+        stmt = select(CanonicalRoute)
+        routes = session.exec(stmt).all()
+        
+        for route in routes:
+            print(f"Processing {route.name}...")
+            
+            # 1. Fetch description if missing
+            if not route.description:
+                summary = fetch_wikipedia_summary(route.name)
+                if not summary:
+                    # Try with "Trail" appended if not found
+                    summary = fetch_wikipedia_summary(f"{route.name} Trail")
+                
+                if summary:
+                    route.description = summary
+                    print(f"  Added description for {route.name}")
+            
+            # 2. Fetch images if missing
+            if not route.images or len(route.images) == 0:
                 query = f"{route.name} Yosemite"
                 images = fetch_wikimedia_images(query)
                 if images:
                     route.images = images
-                session.add(route)
-        session.commit()
+                    print(f"  Added {len(images)} images for {route.name}")
+            
+            session.add(route)
+            session.commit() # Commit each to avoid losing progress
+            
     print("Enrichment complete.")
 
 if __name__ == "__main__":

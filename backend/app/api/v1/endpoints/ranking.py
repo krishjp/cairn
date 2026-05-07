@@ -13,6 +13,7 @@ from app.models.models import (
 import uuid
 import random
 from datetime import datetime
+from app.api.deps import get_current_user
 from app.services.ranking_service import (
     update_rating,
     calculate_match_quality,
@@ -34,7 +35,9 @@ def get_leaderboard(limit: int = 20, session: Session = Depends(get_session)):
 
 @router.get("/personal-leaderboard")
 def get_personal_leaderboard(
-    user_id: uuid.UUID, limit: int = 20, session: Session = Depends(get_session)
+    limit: int = 20, 
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
 ):
     """
     Get the user's personal ranking of trails.
@@ -44,7 +47,7 @@ def get_personal_leaderboard(
     unmatched_stmt = (
         select(Activity)
         .where(
-            Activity.user_id == user_id,
+            Activity.user_id == current_user.id,
             Activity.canonical_route_id.is_(None),
             Activity.is_ignored.is_(False),
         )
@@ -55,7 +58,7 @@ def get_personal_leaderboard(
     # Get matched trail IDs
     matched_routes_stmt = (
         select(Activity.canonical_route_id)
-        .where(Activity.user_id == user_id, Activity.canonical_route_id.is_not(None))
+        .where(Activity.user_id == current_user.id, Activity.canonical_route_id.is_not(None))
         .distinct()
     )
     matched_route_ids = session.exec(matched_routes_stmt).all()
@@ -72,7 +75,7 @@ def get_personal_leaderboard(
 
     # Check for calibration status
     ranked_count_stmt = select(func.count(UserRouteRating.canonical_route_id)).where(
-        UserRouteRating.user_id == user_id
+        UserRouteRating.user_id == current_user.id
     )
     ranked_count = session.exec(ranked_count_stmt).one()
     show_scores = ranked_count >= 5
@@ -83,7 +86,7 @@ def get_personal_leaderboard(
         .outerjoin(
             UserRouteRating,
             (UserRouteRating.canonical_route_id == CanonicalRoute.id)
-            & (UserRouteRating.user_id == user_id),
+            & (UserRouteRating.user_id == current_user.id),
         )
         .where(CanonicalRoute.id.in_(matched_route_ids))
         .order_by(func.coalesce(UserRouteRating.rating_score, 0).desc())
@@ -105,7 +108,7 @@ def get_personal_leaderboard(
         # Find the most recent activity for this route to get metrics
         activity_stmt = (
             select(Activity)
-            .where(Activity.user_id == user_id, Activity.canonical_route_id == route.id)
+            .where(Activity.user_id == current_user.id, Activity.canonical_route_id == route.id)
             .order_by(Activity.start_date.desc())
             .limit(1)
         )
@@ -128,7 +131,7 @@ def get_personal_leaderboard(
     for route, _ in unranked_results:
         activity_stmt = (
             select(Activity)
-            .where(Activity.user_id == user_id, Activity.canonical_route_id == route.id)
+            .where(Activity.user_id == current_user.id, Activity.canonical_route_id == route.id)
             .order_by(Activity.start_date.desc())
             .limit(1)
         )
@@ -158,9 +161,9 @@ def get_personal_leaderboard(
 
 @router.get("/next-pair")
 def get_next_pair(
-    user_id: uuid.UUID,
     fixed_route_id: Optional[int] = Query(None),
     session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
 ):
     """
     Suggests the next two trails for a user to compare.
@@ -175,10 +178,10 @@ def get_next_pair(
             .outerjoin(
                 UserRouteRating,
                 (UserRouteRating.canonical_route_id == Activity.canonical_route_id)
-                & (UserRouteRating.user_id == user_id),
+                & (UserRouteRating.user_id == current_user.id),
             )
             .where(
-                Activity.user_id == user_id,
+                Activity.user_id == current_user.id,
                 Activity.canonical_route_id.is_not(None),
                 UserRouteRating.rating_score.is_(None),
             )
@@ -197,7 +200,7 @@ def get_next_pair(
     ranked_stmt = (
         select(CanonicalRoute, UserRouteRating)
         .join(UserRouteRating)
-        .where(UserRouteRating.user_id == user_id, CanonicalRoute.id != fixed_route_id)
+        .where(UserRouteRating.user_id == current_user.id, CanonicalRoute.id != fixed_route_id)
     )
     ranked_results = session.exec(ranked_stmt).all()
 
@@ -209,7 +212,7 @@ def get_next_pair(
         }
 
     # Get rating for Hike A to use as base for match quality
-    rating_a = session.get(UserRouteRating, (user_id, fixed_route_id))
+    rating_a = session.get(UserRouteRating, (current_user.id, fixed_route_id))
     if not rating_a:
         # If not initialized yet, we can't do match quality, just return first available
         # But in the new flow, it should be initialized.
@@ -219,7 +222,7 @@ def get_next_pair(
 
     # Filter for uncompared pairs and calculate quality
     existing_comps = session.exec(
-        select(Comparison).where(Comparison.user_id == user_id)
+        select(Comparison).where(Comparison.user_id == current_user.id)
     ).all()
     seen_pairs = set()
     for comp in existing_comps:
@@ -259,14 +262,14 @@ def get_next_pair(
 
 @router.post("/initialize-with-bucket")
 def initialize_with_bucket(
-    user_id: uuid.UUID,
     route_id: int,
     bucket: int,  # 1, 2, or 3
     session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
 ):
     """Sets the initial score for a hike based on the selected bucket."""
     # Check if already ranked
-    existing = session.get(UserRouteRating, (user_id, route_id))
+    existing = session.get(UserRouteRating, (current_user.id, route_id))
     if existing:
         return {"status": "already_ranked"}
 
@@ -284,7 +287,7 @@ def initialize_with_bucket(
 
     # Create baseline rating
     rating = UserRouteRating(
-        user_id=user_id,
+        user_id=current_user.id,
         canonical_route_id=route_id,
         rating_score=prior["score"],
         rating_mu=prior["mu"],
@@ -298,23 +301,23 @@ def initialize_with_bucket(
 
 @router.post("/vote")
 def post_vote(
-    user_id: uuid.UUID,
     winner_id: int,
     loser_id: int,
     session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
 ):
     """
     Records a comparison and updates scores using TrueSkill Bayesian logic.
     """
     # Record the comparison for history
     comparison = Comparison(
-        user_id=user_id, winner_route_id=winner_id, loser_route_id=loser_id
+        user_id=current_user.id, winner_route_id=winner_id, loser_route_id=loser_id
     )
     session.add(comparison)
 
     # Fetch the ratings for both routes
-    winner_rating = session.get(UserRouteRating, (user_id, winner_id))
-    loser_rating = session.get(UserRouteRating, (user_id, loser_id))
+    winner_rating = session.get(UserRouteRating, (current_user.id, winner_id))
+    loser_rating = session.get(UserRouteRating, (current_user.id, loser_id))
 
     if not winner_rating or not loser_rating:
         raise HTTPException(
@@ -355,14 +358,15 @@ def post_vote(
 
 @router.get("/friends-leaderboard")
 def get_friends_leaderboard(
-    user_id: uuid.UUID, session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
 ):
     """
     Get a leaderboard showing trails ranked by your friends.
     """
     # Get friends
     friends_stmt = select(Follow.followed_id).where(
-        Follow.follower_id == user_id, Follow.status == "accepted"
+        Follow.follower_id == current_user.id, Follow.status == "accepted"
     )
     friend_ids = session.exec(friends_stmt).all()
 
@@ -396,8 +400,8 @@ def get_friends_leaderboard(
 @router.get("/route/{route_id}")
 def get_route_detail(
     route_id: int,
-    user_id: Optional[uuid.UUID] = Query(None),
     session: Session = Depends(get_session),
+    current_user: Optional[User] = Depends(get_current_user)
 ):
     """
     Returns detailed info about a specific route, including:
@@ -413,14 +417,14 @@ def get_route_detail(
 
     # Personal Rating
     personal = None
-    if user_id:
-        personal = session.get(UserRouteRating, (user_id, route_id))
+    if current_user:
+        personal = session.get(UserRouteRating, (current_user.id, route_id))
 
     # Friend Circle Rating
     friend_ids = []
-    if user_id:
+    if current_user:
         friend_ids_stmt = select(Follow.followed_id).where(
-            Follow.follower_id == user_id, Follow.status == "accepted"
+            Follow.follower_id == current_user.id, Follow.status == "accepted"
         )
         friend_ids = session.exec(friend_ids_stmt).all()
 
@@ -437,7 +441,7 @@ def get_route_detail(
         circle_avg, circle_count = session.exec(circle_stmt).one()
 
     # Reviews (using notes from Activities)
-    relevant_user_ids = [user_id] + list(friend_ids) if user_id else list(friend_ids)
+    relevant_user_ids = [current_user.id] + list(friend_ids) if current_user else list(friend_ids)
     
     friend_reviews = (
         select(Activity, User.display_name, UserRouteRating.rating_score)

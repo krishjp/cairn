@@ -9,7 +9,7 @@ import { CairnLogo } from '../../components/CairnLogo';
 const { width } = Dimensions.get('window');
 
 export default function Ranking() {
-  const { user } = useAuth();
+  const { user, token } = useAuth();
   const { fixed_id } = useLocalSearchParams();
   const [step, setStep] = useState<'loading' | 'bucket' | 'compare' | 'complete'>('loading');
   const [bucketHike, setBucketHike] = useState<any>(null);
@@ -32,8 +32,13 @@ export default function Ranking() {
     try {
       // Check if this specific hike is already ranked
       const response = await fetch(
-        `${process.env.EXPO_PUBLIC_API_URL}/api/v1/ranking/personal-leaderboard?user_id=${user?.id}`,
-        { headers: { 'ngrok-skip-browser-warning': 'true' } }
+        `${process.env.EXPO_PUBLIC_API_URL}/api/v1/ranking/personal-leaderboard`,
+        { 
+          headers: { 
+            'ngrok-skip-browser-warning': 'true',
+            'Authorization': `Bearer ${token}`
+          } 
+        }
       );
       const data = await response.json();
       const isRanked = data.routes.find((r: any) => r.id === parseInt(fixed_id as string))?.is_ranked;
@@ -42,8 +47,13 @@ export default function Ranking() {
         // We need to pick a bucket first
         // Fetch the route details
         const routeResp = await fetch(
-          `${process.env.EXPO_PUBLIC_API_URL}/api/v1/ranking/next-pair?user_id=${user?.id}&fixed_route_id=${fixed_id}`,
-          { headers: { 'ngrok-skip-browser-warning': 'true' } }
+          `${process.env.EXPO_PUBLIC_API_URL}/api/v1/ranking/next-pair?fixed_route_id=${fixed_id}`,
+          { 
+            headers: { 
+              'ngrok-skip-browser-warning': 'true',
+              'Authorization': `Bearer ${token}`
+            } 
+          }
         );
         const routeData = await routeResp.json();
         setBucketHike(routeData.route_a);
@@ -61,10 +71,15 @@ export default function Ranking() {
     setIsLoading(true);
     fadeAnim.setValue(0);
     try {
-      const baseUrl = `${process.env.EXPO_PUBLIC_API_URL}/api/v1/ranking/next-pair?user_id=${user?.id}`;
-      const url = fixed_id ? `${baseUrl}&fixed_route_id=${fixed_id}` : baseUrl;
+      const baseUrl = `${process.env.EXPO_PUBLIC_API_URL}/api/v1/ranking/next-pair`;
+      const url = fixed_id ? `${baseUrl}?fixed_route_id=${fixed_id}` : baseUrl;
       
-      const response = await fetch(url, { headers: { 'ngrok-skip-browser-warning': 'true' } });
+      const response = await fetch(url, { 
+        headers: { 
+          'ngrok-skip-browser-warning': 'true',
+          'Authorization': `Bearer ${token}`
+        } 
+      });
       
       if (response.status === 404) {
         setStep('complete');
@@ -90,10 +105,13 @@ export default function Ranking() {
     if (!user?.id || !fixed_id) return;
     try {
       await fetch(
-        `${process.env.EXPO_PUBLIC_API_URL}/api/v1/ranking/initialize-with-bucket?user_id=${user.id}&route_id=${fixed_id}&bucket=${bucket}`,
+        `${process.env.EXPO_PUBLIC_API_URL}/api/v1/ranking/initialize-with-bucket?route_id=${fixed_id}&bucket=${bucket}`,
         { 
           method: 'POST',
-          headers: { 'ngrok-skip-browser-warning': 'true' }
+          headers: { 
+            'ngrok-skip-browser-warning': 'true',
+            'Authorization': `Bearer ${token}`
+          }
         }
       );
       // Now that it's initialized, start comparing
@@ -107,10 +125,13 @@ export default function Ranking() {
     if (!user?.id) return;
     try {
       await fetch(
-        `${process.env.EXPO_PUBLIC_API_URL}/api/v1/ranking/vote?user_id=${user.id}&winner_id=${winnerId}&loser_id=${loserId}`,
+        `${process.env.EXPO_PUBLIC_API_URL}/api/v1/ranking/vote?winner_id=${winnerId}&loser_id=${loserId}`,
         { 
           method: 'POST',
-          headers: { 'ngrok-skip-browser-warning': 'true' }
+          headers: { 
+            'ngrok-skip-browser-warning': 'true',
+            'Authorization': `Bearer ${token}`
+          }
         }
       );
       fetchNextPair();

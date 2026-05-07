@@ -8,7 +8,7 @@ import { router } from 'expo-router';
 const API_URL = process.env.EXPO_PUBLIC_API_URL;
 
 export default function Settings() {
-  const { user, signOut } = useAuth();
+  const { user, token, signOut } = useAuth();
   const [isSyncing, setIsSyncing] = useState(false);
 
   const handleSync = async () => {
@@ -16,10 +16,11 @@ export default function Settings() {
     
     setIsSyncing(true);
     try {
-      const response = await fetch(`${API_URL}/api/v1/strava/sync?user_id=${user.id}`, {
+      const response = await fetch(`${API_URL}/api/v1/strava/sync`, {
         method: 'POST',
         headers: {
           'ngrok-skip-browser-warning': 'true',
+          'Authorization': `Bearer ${token}`
         },
       });
       
@@ -48,8 +49,11 @@ export default function Settings() {
     if (!user?.id) return;
     setIsLoadingIgnored(true);
     try {
-      const response = await fetch(`${API_URL}/api/v1/strava/ignored?user_id=${user.id}`, {
-        headers: { 'ngrok-skip-browser-warning': 'true' }
+      const response = await fetch(`${API_URL}/api/v1/strava/ignored`, {
+        headers: { 
+          'ngrok-skip-browser-warning': 'true',
+          'Authorization': `Bearer ${token}`
+        }
       });
       const data = await response.json();
       setIgnoredActivities(data || []);
@@ -64,7 +68,10 @@ export default function Settings() {
     try {
       await fetch(`${API_URL}/api/v1/strava/restore?activity_id=${activityId}`, {
         method: 'POST',
-        headers: { 'ngrok-skip-browser-warning': 'true' }
+        headers: { 
+          'ngrok-skip-browser-warning': 'true',
+          'Authorization': `Bearer ${token}`
+        }
       });
       fetchIgnored(); // Refresh list
       Alert.alert("Restored", "Activity has been moved back to your staging area.");

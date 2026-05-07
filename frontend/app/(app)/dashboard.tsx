@@ -9,7 +9,7 @@ import { router, useFocusEffect } from 'expo-router';
 const { width, height } = Dimensions.get('window');
 
 export default function Dashboard() {
-  const { user, signOut } = useAuth();
+  const { user, token, signOut } = useAuth();
   const [showProfile, setShowProfile] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
@@ -51,8 +51,13 @@ export default function Dashboard() {
     setIsLoading(true);
     try {
       const response = await fetch(
-        `${process.env.EXPO_PUBLIC_API_URL}/api/v1/strava/feed?user_id=${user?.id}`,
-        { headers: { 'ngrok-skip-browser-warning': 'true' } }
+        `${process.env.EXPO_PUBLIC_API_URL}/api/v1/strava/feed`,
+        { 
+          headers: { 
+            'ngrok-skip-browser-warning': 'true',
+            'Authorization': `Bearer ${token}`
+          } 
+        }
       );
       const data = await response.json();
       if (Array.isArray(data)) {
@@ -70,8 +75,13 @@ export default function Dashboard() {
     setIsLoading(true);
     try {
       const response = await fetch(
-        `${process.env.EXPO_PUBLIC_API_URL}/api/v1/ranking/personal-leaderboard?user_id=${user?.id}`,
-        { headers: { 'ngrok-skip-browser-warning': 'true' } }
+        `${process.env.EXPO_PUBLIC_API_URL}/api/v1/ranking/personal-leaderboard`,
+        { 
+          headers: { 
+            'ngrok-skip-browser-warning': 'true',
+            'Authorization': `Bearer ${token}`
+          } 
+        }
       );
       const data = await response.json();
       if (data) {
@@ -115,7 +125,12 @@ export default function Dashboard() {
         setIsSearching(true);
         const response = await fetch(
           `${process.env.EXPO_PUBLIC_API_URL}/api/v1/routes/search?q=${text}`,
-          { headers: { 'ngrok-skip-browser-warning': 'true' } }
+          { 
+            headers: { 
+              'ngrok-skip-browser-warning': 'true',
+              'Authorization': `Bearer ${token}`
+            } 
+          }
         );
         const data = await response.json();
         if (Array.isArray(data)) {
@@ -141,7 +156,12 @@ export default function Dashboard() {
         setIsMatchSearching(true);
         const response = await fetch(
           `${process.env.EXPO_PUBLIC_API_URL}/api/v1/routes/search?q=${text}`,
-          { headers: { 'ngrok-skip-browser-warning': 'true' } }
+          { 
+            headers: { 
+              'ngrok-skip-browser-warning': 'true',
+              'Authorization': `Bearer ${token}`
+            } 
+          }
         );
         const data = await response.json();
         if (Array.isArray(data)) {
@@ -169,7 +189,10 @@ export default function Dashboard() {
         `${process.env.EXPO_PUBLIC_API_URL}/api/v1/strava/promote?activity_id=${matchingActivity.id}&route_id=${routeId}`,
         {
           method: 'POST',
-          headers: { 'ngrok-skip-browser-warning': 'true' }
+          headers: { 
+            'ngrok-skip-browser-warning': 'true',
+            'Authorization': `Bearer ${token}`
+          }
         }
       );
       const data = await response.json();
@@ -193,7 +216,10 @@ export default function Dashboard() {
         `${process.env.EXPO_PUBLIC_API_URL}/api/v1/strava/ignore?activity_id=${activityId}`,
         {
           method: 'POST',
-          headers: { 'ngrok-skip-browser-warning': 'true' }
+          headers: { 
+            'ngrok-skip-browser-warning': 'true',
+            'Authorization': `Bearer ${token}`
+          }
         }
       );
       const data = await response.json();

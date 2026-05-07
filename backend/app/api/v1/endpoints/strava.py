@@ -1,3 +1,4 @@
+from typing import List, Optional
 from fastapi import APIRouter, Depends, Query, Request, HTTPException
 from fastapi.responses import RedirectResponse
 from sqlmodel import Session, select
@@ -7,9 +8,11 @@ from app.services import strava as strava_service
 from app.services.strava import get_activity_stream, stream_to_wkt
 from app.services.matching import match_activity_to_route
 from app.models.models import User, Activity, StravaAccount, Follow, CanonicalRoute, UserRouteRating
+from app.api.deps import get_current_user
 import uuid
 import logging
 from datetime import datetime
+from app.core.security import create_access_token
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -63,10 +66,13 @@ async def callback(
         session.add(strava_acc)
         session.commit()
 
+        # Generate JWT token
+        access_token = create_access_token(subject=user.id)
+
         # Redirect back to the app/web using the provided state as target
         separator = "&" if "?" in state else "?"
         return RedirectResponse(
-            url=f"{state}{separator}status=success&name={user.display_name}&id={user.id}"
+            url=f"{state}{separator}status=success&name={user.display_name}&id={user.id}&token={access_token}"
         )
     except Exception as e:
         logger.error(f"OAuth Error: {e}")
@@ -74,16 +80,19 @@ async def callback(
 
 
 @router.post("/sync")
-async def sync_activities(user_id: uuid.UUID, session: Session = Depends(get_session)):
+async def sync_activities(
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
     """Manually trigger a sync of recent Strava activities."""
-    strava_stmt = select(StravaAccount).where(StravaAccount.user_id == user_id)
+    strava_stmt = select(StravaAccount).where(StravaAccount.user_id == current_user.id)
     strava_acc = session.exec(strava_stmt).first()
 
     if not strava_acc or not strava_acc.access_token:
         raise HTTPException(status_code=400, detail="Strava account not linked")
 
     try:
-        logger.info(f"Starting sync for user {user_id}")
+        logger.info(f"Starting sync for user {current_user.id}")
         activities = strava_service.get_recent_activities(strava_acc.access_token)
         logger.info(f"Found {len(activities)} recent activities from Strava")
         synced_count = 0
@@ -126,7 +135,7 @@ async def sync_activities(user_id: uuid.UUID, session: Session = Depends(get_ses
                         pass
 
                 new_activity = Activity(
-                    user_id=user_id,
+                    user_id=current_user.id,
                     strava_activity_id=int(activity_id),
                     raw_polyline=wkt,
                     name=act.get("name"),
@@ -150,21 +159,24 @@ async def sync_activities(user_id: uuid.UUID, session: Session = Depends(get_ses
         session.commit()
         return {"status": "ok", "synced": synced_count}
     except Exception as e:
-        logger.exception(f"Sync Error for user {user_id}")
+        logger.exception(f"Sync Error for user {current_user.id}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/activities")
 async def get_user_activities(
-    user_id: uuid.UUID,
+    user_id: Optional[uuid.UUID] = None,
     limit: int = 20,
     only_matched: bool = True,
     session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
 ):
     """Fetch a user's activities from the local database."""
+    # Use provided user_id for public profiles, but default to current_user
+    target_user_id = user_id or current_user.id
     stmt = (
         select(Activity)
-        .where(Activity.user_id == user_id)
+        .where(Activity.user_id == target_user_id)
         .where(Activity.is_ignored.is_(False))
     )
 
@@ -190,17 +202,19 @@ async def get_user_activities(
 
 @router.get("/feed")
 async def get_social_feed(
-    user_id: uuid.UUID, limit: int = 20, session: Session = Depends(get_session)
+    limit: int = 20, 
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
 ):
     """Fetch a social feed for the user, including their own and friends' activities."""
     # Get IDs of users being followed
     friend_ids_stmt = select(Follow.followed_id).where(
-        Follow.follower_id == user_id, Follow.status == "accepted"
+        Follow.follower_id == current_user.id, Follow.status == "accepted"
     )
     friend_ids = session.exec(friend_ids_stmt).all()
 
     # Include the user's own ID
-    relevant_user_ids = [user_id] + list(friend_ids)
+    relevant_user_ids = [current_user.id] + list(friend_ids)
 
     # Fetch matched hiking activities, ordered by when they were LAST RANKED, then by start date.
     stmt = (
@@ -243,11 +257,14 @@ async def get_social_feed(
 
 @router.post("/promote")
 def promote_activity_to_route(
-    activity_id: uuid.UUID, route_id: int, session: Session = Depends(get_session)
+    activity_id: uuid.UUID, 
+    route_id: int, 
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
 ):
     """Manually match an activity to a canonical route."""
     activity = session.get(Activity, activity_id)
-    if not activity:
+    if not activity or activity.user_id != current_user.id:
         raise HTTPException(status_code=404, detail="Activity not found")
 
     route = session.get(CanonicalRoute, route_id)
@@ -261,10 +278,14 @@ def promote_activity_to_route(
 
 
 @router.post("/ignore")
-def ignore_activity(activity_id: uuid.UUID, session: Session = Depends(get_session)):
+def ignore_activity(
+    activity_id: uuid.UUID, 
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
     """Mark an activity as ignored."""
     activity = session.get(Activity, activity_id)
-    if not activity:
+    if not activity or activity.user_id != current_user.id:
         raise HTTPException(status_code=404, detail="Activity not found")
     activity.is_ignored = True
     session.add(activity)
@@ -273,10 +294,14 @@ def ignore_activity(activity_id: uuid.UUID, session: Session = Depends(get_sessi
 
 
 @router.post("/restore")
-def restore_activity(activity_id: uuid.UUID, session: Session = Depends(get_session)):
+def restore_activity(
+    activity_id: uuid.UUID, 
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
     """Un-mark an activity as ignored."""
     activity = session.get(Activity, activity_id)
-    if not activity:
+    if not activity or activity.user_id != current_user.id:
         raise HTTPException(status_code=404, detail="Activity not found")
     activity.is_ignored = False
     session.add(activity)
@@ -286,12 +311,13 @@ def restore_activity(activity_id: uuid.UUID, session: Session = Depends(get_sess
 
 @router.get("/ignored")
 async def get_ignored_activities(
-    user_id: uuid.UUID, session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
 ):
     """Fetch all ignored activities for a user."""
     stmt = (
         select(Activity)
-        .where(Activity.user_id == user_id)
+        .where(Activity.user_id == current_user.id)
         .where(Activity.is_ignored.is_(True))
         .order_by(Activity.start_date.desc())
     )

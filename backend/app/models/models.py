@@ -29,6 +29,7 @@ class User(SQLModel, table=True):
         default=None, sa_column=Column(Text, nullable=True)
     )
     is_private: bool = Field(default=False)
+    is_admin: bool = Field(default=False)
 
     # Relationships
     strava_account: Optional["StravaAccount"] = Relationship(

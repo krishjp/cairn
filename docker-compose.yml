@@ -27,6 +27,7 @@ services:
       STRAVA_CLIENT_ID: ${STRAVA_CLIENT_ID}
       STRAVA_CLIENT_SECRET: ${STRAVA_CLIENT_SECRET}
       STRAVA_WEBHOOK_VERIFY_TOKEN: ${STRAVA_WEBHOOK_VERIFY_TOKEN}
+      SECRET_KEY: ${SECRET_KEY}
     depends_on:
       db:
         condition: service_healthy
