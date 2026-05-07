@@ -5,7 +5,7 @@ from sqlalchemy import pool
 
 from alembic import context
 
-from app.models.models import SQLModel
+from app.models.models import SQLModel, User, Activity, CanonicalRoute, StravaAccount, Follow, Bookmark, Comparison, UserRouteRating
 from app.core.config import settings
 
 # this is the Alembic Config object, which provides
