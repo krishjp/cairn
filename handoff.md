@@ -12,7 +12,7 @@
 - **Integration:** Strava API (OAuth2 + Webhooks)
 
 ## 3. Current Status
-The project has transitioned into a functional "Dictionary-Style" platform with a stable identity system, a refined ranking engine, and a robust manual-matching staging area.
+The project has transitioned into a secure, functional "Dictionary-Style" platform with a robust privacy model, automated trail enrichment, and a stable ranking engine.
 
 ### Completed Tasks:
 - [x] **New Rating System**: Migrated to a **TrueSkill Bayesian** engine on a **0.00 - 10.00 scale**.
@@ -27,12 +27,16 @@ The project has transitioned into a functional "Dictionary-Style" platform with 
 - [x] **Unit Conversion**: Fixed consistency for Distance (mi) and Elevation (ft).
 - [x] **Staging Area Workflow**: Implemented a "manual-staging" model where raw activities must be promoted to trails before ranking.
 - [x] **Activity Management**: Added "Hide" and "Restore" functionality for ignoring commute/walk activities.
-- [x] **Manual Matching UI**: Built a dictionary-style promotion modal with real-time trail search.
+- [x] **Security Hardening**: Enforced **JWT-based authentication** across all backend endpoints and removed all client-side IDOR vulnerabilities.
+- [x] **Automated Enrichment**: Integrated **Wikipedia and Wikimedia Commons** APIs to automatically populate trail descriptions and imagery during the OSM seeding process.
+- [x] **Privacy-First Comments**: Implemented a "Public Review" system that protects private Strava notes while allowing community-facing feedback.
+- [x] **Standardized Detail Routing**: Unified trail detail navigation from both the social feed and personal rankings.
+- [x] **Alembic Versioning**: Stabilized the database schema with a complete migration history.
 
-### Verified State:
-- `docker-compose up` runs successfully.
+- `docker compose up -d` runs successfully.
 - `npm run web` launches the frontend.
-- Backend and DB correctly handle UUID-based user identities and 1-10 rating scores.
+- `pytest` passes all 19 authentication-aware integration tests.
+- Backend and DB correctly handle UUID-based user identities, 1-10 rating scores, and public trail reviews.
 
 ## 4. Key Configuration Files
 - `backend/app/core/config.py`: Contains TrueSkill parameters and bucket percentiles.
@@ -42,13 +46,13 @@ The project has transitioned into a functional "Dictionary-Style" platform with 
 - `frontend/app/index.tsx`: Splash screen with dictionary phonetics.
 
 ## 5. Next Steps
-1. **Filter Integration**: Connect the frontend filter chips to backend query parameters in `routes/search`.
-2. **Activity Detail View**: Implement a drill-down view for deep dives into specific hike metadata and maps.
-3. **Ranking Algorithm Calibration**: Tune the Elo/Bradley-Terry parameters to handle diverse trail difficulty profiles and user preference swings.
+1. **At-Rest Encryption**: Implement encryption for Strava access/refresh tokens in the PostgreSQL database for final security remediation.
+2. **Filter Integration**: Connect the frontend filter chips to backend query parameters in `routes/search`.
+3. **Activity Detail View**: Implement a drill-down view for deep dives into specific hike metadata and maps.
 4. **Global Leaderboard Visualization**: Add a "Mountain Circle" graph visualization to the landing page.
 
 ## 6. Troubleshooting
 - **Ngrok Conflict**: If the `cairn-ngrok-1` container fails with `ERR_NGROK_334`, ensure all other ngrok sessions using the `comrade-devotion-divinity` domain are terminated (check other devices/Macs).
 
 ---
-*Generated on 2026-05-06*
+*Generated on 2026-05-07*

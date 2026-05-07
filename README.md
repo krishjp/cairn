@@ -51,6 +51,7 @@ Cairn automatically identifies which trail a user hiked by comparing their raw G
 *   **Multi-Source Ingestion:** Supports activities from Strava (Webhooks) and custom ESP32 "Hikebox" hardware (Manual Upload).
 *   **OSM Seeding:** Uses the Overpass API to fetch `route=hiking` relations and ways.
 *   **Matching Logic:** Implemented using `Shapely`. The system buffers canonical routes by ~20 meters and calculates the intersection with the user's activity. A match is confirmed if the overlap exceeds 80%.
+*   **Automated Enrichment:** New trails are automatically enriched with descriptions from Wikipedia and imagery from Wikimedia Commons during the seeding process, ensuring every discovered route has professional-grade metadata.
 *   **Trail Promotion:** For activities with <80% match, users can "promote" their track to a new Canonical Route. The system automatically cleans the track by trimming trailhead noise (default 50m) and simplifying the geometry.
 
 ### 2. Ranking Engine
@@ -78,9 +79,17 @@ The **Mountain Circle** feed aggregates hiking activities from the user and thei
     *   High-quality minimalist trail imagery.
     *   A togglable review system for mountain circle vs. global feedback.
     *   Technical metadata (distance, elevation, description).
-*   **Rich Metrics:** Captures Strava descriptions, kudos (reactions), and comments directly into the feed.
+*   **Public Comments:** To protect user privacy, Strava activity descriptions are treated as private. Users can create a platform-native "Public Comment" during the calibration process (optionally copying from their Strava notes) to share their thoughts with the community.
+*   **Rich Metrics:** Captures social stats like kudos (reactions) and comments directly into the feed, while maintaining a strict separation between private logs and public reviews.
 *   **Unified Aesthetic:** Both the feed and personal rankings share a premium "Dictionary-Style" card design with defined borders.
 *   **Real-Time Sync:** Dashboard refreshes automatically when returning from calibration sessions.
+*   **Unified Detail View:** Click trail names from any list (Feed or Rankings) to access the comprehensive detail page.
+
+### 4. Privacy & Data Security
+Cairn is built with a "Privacy by Design" philosophy:
+*   **JWT Authentication**: All backend endpoints are secured via JWT-based session management.
+*   **Restricted Identity**: Client-side `user_id` parameters are eliminated; all identity resolution happens server-side via verified tokens.
+*   **Personal Data Isolation**: Strava notes and unranked activities are only visible on your private dashboard and are never exposed to the public or friends feed without explicit promotion.
 
 ## UI & Design Philosophy
 
@@ -160,11 +169,10 @@ npx expo start  # Scan QR code with Expo Go on your phone
 Populate the database with trails from specific regions:
 
 ```bash
-# Seed Yosemite National Park
-docker compose exec backend python -m app.seed_osm --park yosemite
-
-# Seed by bounding box
-docker compose exec backend python -m app.seed_osm --bbox "37.70,-122.55,37.85,-122.35"
+# Trigger OSM seeding and automated Wikipedia/Wikimedia enrichment
+# bbox format: "lat_min,lon_min,lat_max,lon_max"
+curl -X POST "http://localhost:8000/api/v1/admin/seed-osm?bbox=37.7,-119.7,37.8,-119.5" \
+     -H "Authorization: Bearer <ADMIN_TOKEN>"
 ```
 
 ## Development and Testing

@@ -42,12 +42,19 @@ Unlike restaurants, hikes are lines, not points.
 - **Dynamic Imagery**: Automated photo galleries sourced from Wikimedia Commons (Public API).
 - **Consensus Rankings**: Displays Personal, Mountain Circle Average, and Global Consensus scores.
 - **Social Proof**: Toggleable reviews between friends and the global community.
+- **Automated Content**: Automatic Wikipedia summary fetching and Wikimedia Commons photo population during seeding.
+
+## 4. Security & Identity
+- **JWT-Based Session Management**: All endpoints require a valid JWT bearer token. Identity is resolved server-side from the token, eliminating IDOR vulnerabilities.
+- **Privacy Controls**: Strava notes and unranked activities are treated as private logs. Public "Reviews" are explicitly created by users during the calibration/ranking process.
 
 ## 4. Database Schema (Current)
 ```sql
 CREATE TABLE users (
     id UUID PRIMARY KEY,
-    display_name TEXT
+    display_name TEXT,
+    is_admin BOOLEAN DEFAULT FALSE,
+    is_private BOOLEAN DEFAULT FALSE
 );
 
 CREATE TABLE canonical_routes (
@@ -76,6 +83,9 @@ CREATE TABLE user_route_ratings (
     user_id UUID,
     canonical_route_id INT,
     rating_score FLOAT,
+    rating_mu FLOAT,
+    rating_sigma FLOAT,
+    public_comment TEXT,
     last_ranked_at TIMESTAMP DEFAULT now(),
     PRIMARY KEY (user_id, canonical_route_id)
 );
