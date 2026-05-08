@@ -32,10 +32,11 @@ The project has transitioned into a secure, functional "Dictionary-Style" platfo
 - [x] **Privacy-First Comments**: Implemented a "Public Review" system that protects private Strava notes while allowing community-facing feedback.
 - [x] **Standardized Detail Routing**: Unified trail detail navigation from both the social feed and personal rankings.
 - [x] **Alembic Versioning**: Stabilized the database schema with a complete migration history.
+- [x] **Mock Ingestion Framework**: Implemented `mock_webhook.py` to simulate Strava activity creation and automatic geometry matching for local development.
 
 - `docker compose up -d` runs successfully.
 - `npm run web` launches the frontend.
-- `pytest` passes all 19 authentication-aware integration tests.
+- `pytest` passes all **20** authentication-aware integration tests.
 - Backend and DB correctly handle UUID-based user identities, 1-10 rating scores, and public trail reviews.
 
 ## 4. Key Configuration Files

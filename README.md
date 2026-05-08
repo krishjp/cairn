@@ -160,6 +160,12 @@ Cairn uses Alembic for database migrations, providing a workflow similar to Djan
     docker compose exec backend python -m app.manage_mock_data --attach <YOUR_USER_ID>
     ```
 
+*   **Mock Strava Webhooks:** Simulate the end-to-end ingestion flow (creation + matching) without real Strava API calls:
+    ```bash
+    # Mock a new hike for a user using an existing trail as geometry
+    docker compose exec backend python -m app.mock_webhook --username <USERNAME> --route "Mist Trail"
+    ```
+
 *   **User Management:** Promote or demote users to admin status:
     ```bash
     # Promote a user to admin
@@ -215,3 +221,8 @@ docker compose exec backend ruff format .
 Once the stack is running, interactive documentation is available at:
 *   Swagger UI: http://localhost:8000/docs
 *   Ngrok Dashboard: http://localhost:4040
+
+## Upcoming Roadmap
+- [ ] **Mocked Webhook Testing**: Expand `mock_webhook.py` to support full JSON payload simulation via `curl` to the actual `/webhook` endpoint.
+- [ ] **Geometry Distortion**: Add more realistic GPS "drift" to mock activities to test matching robustness.
+- [ ] **Strava Webhook Signature Verification**: Implement security headers for production webhooks.

@@ -97,6 +97,7 @@ CREATE TABLE user_route_ratings (
 - [x] Set up FastAPI project structure with PostgreSQL/PostGIS connection.
 - [x] Implement Strava OAuth2 flow and Webhook validation.
 - [x] Create utility to convert Strava Polylines to PostGIS LineStrings.
+- [x] **New:** Build `mock_webhook.py` framework to simulate end-to-end ingestion without Strava API dependency.
 
 ### Phase 2: Geometry Matching & Seeding (Complete)
 - [x] Build script to seed `canonical_routes` from OSM Overpass API.
@@ -110,6 +111,7 @@ CREATE TABLE user_route_ratings (
 ### Phase 4: Ranking & Social Discovery (Active)
 - [x] Implement TrueSkill Bayesian engine with $\mu$ and $\sigma$ updates.
 - [x] Implement Dynamic Percentile Bucketing (25/50/25).
+- [x] **New:** Automated Test Suite expanded to 20 integration tests covering authentication and webhook flows.
 - [x] Build "Recently Ranked" Social Feed with outer-join ordering.
 - [x] Implement Immersive Trail Detail page with Banner Overlap design.
 - [x] Integrate Wikimedia Commons API for automated photo galleries.
