@@ -11,6 +11,7 @@ from app.models.models import (
     Comparison,
 )
 import random
+import math
 from datetime import datetime
 from app.api.deps import get_current_user
 from app.services.ranking_service import (
@@ -304,6 +305,26 @@ def get_next_pair(
                 "strava_notes": latest_act.notes if latest_act else None,
             },
         }
+
+    # Count how many comparisons this specific hike has already had
+    comp_count_stmt = select(func.count(Comparison.id)).where(
+        Comparison.user_id == current_user.id,
+        or_(
+            Comparison.winner_route_id == fixed_route_id,
+            Comparison.loser_route_id == fixed_route_id
+        )
+    )
+    current_comps = session.exec(comp_count_stmt).one()
+
+    # Calculate slow-growing limit: starts at 2, increases very slowly
+    total_ranked = len(ranked_results) # Candidates for Hike B
+    max_comps = 2 + int(math.log(total_ranked / 5 + 1))
+    
+    if current_comps >= max_comps:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Hike has reached comparison limit ({current_comps}/{max_comps})."
+        )
 
 
     # Get rating for Hike A to use as base for match quality

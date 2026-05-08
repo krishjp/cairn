@@ -110,7 +110,7 @@ export default function Settings() {
           username: updatedUser.username,
           isAdmin: updatedUser.is_admin,
           isPrivate: updatedUser.is_private,
-          token: token 
+          token: token ?? undefined
         });
       } else {
         // Revert if failed

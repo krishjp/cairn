@@ -372,6 +372,13 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     fontSize: 13,
   },
+  emptyText: {
+    fontSize: 16,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+    marginTop: 20,
+    fontStyle: 'italic',
+  },
   footer: {
     marginTop: 60,
     paddingBottom: 40,
