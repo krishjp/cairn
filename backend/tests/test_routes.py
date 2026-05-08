@@ -2,6 +2,8 @@ from app.models.models import Activity, User, CanonicalRoute
 from sqlmodel import Session
 from geoalchemy2.shape import from_shape
 from shapely.geometry import LineString
+from app.main import app
+from app.api.deps import get_current_user
 
 
 def test_promote_activity(session: Session, client):
@@ -9,6 +11,9 @@ def test_promote_activity(session: Session, client):
     user = User(display_name="Promoter", username="promoter")
     session.add(user)
     session.flush()
+
+    # Ensure the API acts as this user
+    app.dependency_overrides[get_current_user] = lambda: user
 
     # Create a long activity (0 to 1 degree is ~111km)
     # So trimming 50m should be a tiny fraction

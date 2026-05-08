@@ -1,7 +1,7 @@
 from typing import Optional
 from fastapi import APIRouter, Depends, Query, Request, HTTPException
 from fastapi.responses import RedirectResponse
-from sqlmodel import Session, select
+from sqlmodel import Session, select, func
 from app.core.db import get_session
 from app.core.config import settings
 from app.services import strava as strava_service
@@ -229,6 +229,13 @@ def get_social_feed(
     """Fetch a social feed for the user, including their own and friends' activities."""
     from sqlalchemy.orm import joinedload
     
+    # Calibration Check: Does current user see scores?
+    ranked_count_stmt = select(func.count(UserRouteRating.canonical_route_id)).where(
+        UserRouteRating.user_id == current_user.id
+    )
+    ranked_count = session.exec(ranked_count_stmt).one()
+    show_scores = ranked_count >= 5
+
     # Get IDs of users being followed
     friend_ids_stmt = select(Follow.followed_id).where(
         Follow.follower_id == current_user.id, Follow.status == "accepted"
@@ -236,11 +243,11 @@ def get_social_feed(
     friend_ids = session.exec(friend_ids_stmt).all()
     relevant_user_ids = [current_user.id] + list(friend_ids)
 
-    # Fetch activities with eager loading of user and route
+    # Fetch activities: Only those with a UserRouteRating (Ranked)
     stmt = (
         select(Activity)
         .options(joinedload(Activity.user), joinedload(Activity.canonical_route))
-        .outerjoin(
+        .join(
             UserRouteRating,
             (UserRouteRating.canonical_route_id == Activity.canonical_route_id)
             & (UserRouteRating.user_id == Activity.user_id),
@@ -260,7 +267,6 @@ def get_social_feed(
     route_user_pairs = [(act.user_id, act.canonical_route_id) for act in activities if act.canonical_route_id]
     ratings_dict = {}
     if route_user_pairs:
-        # Complex multi-column IN query for SQLModel/SQLAlchemy
         from sqlalchemy import tuple_
         ratings_stmt = select(UserRouteRating).where(
             tuple_(UserRouteRating.user_id, UserRouteRating.canonical_route_id).in_(route_user_pairs)
@@ -284,14 +290,24 @@ def get_social_feed(
 
         if act.canonical_route:
             act_dict["trail_name"] = act.canonical_route.name
-            raw_rating = act.canonical_route.rating_score
-            act_dict["global_rating"] = (
-                raw_rating / 100.0 if raw_rating > 100 else raw_rating
-            )
+            # Get the actual rating given by THIS user for THIS trail
+            user_rating_obj = ratings_dict.get((act.user_id, act.canonical_route_id))
+            
+            # Only show scores if the viewer is calibrated
+            if show_scores and user_rating_obj:
+                raw_rating = user_rating_obj.rating_score
+                act_dict["global_rating"] = raw_rating
+            else:
+                act_dict["global_rating"] = None
+
 
         result.append(act_dict)
 
-    return result
+    return {
+        "activities": result,
+        "show_scores": show_scores
+    }
+
 
 
 @router.post("/promote")

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlmodel import Session, select, func, text, or_
 from typing import Optional
 from app.core.db import get_session
@@ -24,12 +24,78 @@ router = APIRouter()
 
 @router.get("/leaderboard")
 def get_leaderboard(limit: int = 20, session: Session = Depends(get_session)):
-    """Get the global leaderboard of trails."""
-    statement = (
-        select(CanonicalRoute).order_by(CanonicalRoute.rating_score.desc()).limit(limit)
+    """
+    Get the global leaderboard of trails.
+    Calculates average scores across ALL users.
+    """
+    stmt = (
+        select(
+            CanonicalRoute,
+            func.avg(UserRouteRating.rating_score).label("avg_score"),
+            func.count(UserRouteRating.user_id).label("total_ratings")
+        )
+        .join(UserRouteRating, UserRouteRating.canonical_route_id == CanonicalRoute.id)
+        .group_by(CanonicalRoute.id)
+        .order_by(text("avg_score DESC"))
+        .limit(limit)
     )
-    results = session.exec(statement).all()
-    return [r.model_dump(exclude={"geometry"}) for r in results]
+    results = session.exec(stmt).all()
+    
+    return [
+        {
+            **route.model_dump(exclude={"geometry"}),
+            "global_rating": round(avg_score, 2),
+            "total_ratings": total_ratings
+        }
+        for route, avg_score, total_ratings in results
+    ]
+
+
+# Simple in-memory ratelimit for public endpoints
+trending_ratelimit = {}
+
+@router.get("/trending")
+def get_trending_routes(request: Request, limit: int = 3, session: Session = Depends(get_session)):
+    """
+    Get trending trails for the public landing page.
+    Ratelimited by IP.
+    """
+    client_ip = request.client.host
+    now = datetime.utcnow()
+    
+    # 30 requests per minute
+    if client_ip in trending_ratelimit:
+        last_req, count = trending_ratelimit[client_ip]
+        if (now - last_req).total_seconds() < 60:
+            if count >= 30:
+                raise HTTPException(status_code=429, detail="Too many requests")
+            trending_ratelimit[client_ip] = (last_req, count + 1)
+        else:
+            trending_ratelimit[client_ip] = (now, 1)
+    else:
+        trending_ratelimit[client_ip] = (now, 1)
+
+    stmt = (
+        select(
+            CanonicalRoute,
+            func.avg(UserRouteRating.rating_score).label("avg_score")
+        )
+        .join(UserRouteRating, UserRouteRating.canonical_route_id == CanonicalRoute.id)
+        .group_by(CanonicalRoute.id)
+        .order_by(text("avg_score DESC"))
+        .limit(limit)
+    )
+    results = session.exec(stmt).all()
+    
+    return [
+        {
+            **route.model_dump(exclude={"geometry"}),
+            "global_rating": round(avg_score, 2)
+        }
+        for route, avg_score in results
+    ]
+
+
 
 
 @router.get("/personal-leaderboard")
@@ -218,19 +284,19 @@ def get_next_pair(
     )
     ranked_results = session.exec(ranked_stmt).all()
 
-    if not ranked_results:
-        # Get latest activity notes for route_a to show to user
-        act_stmt = (
-            select(Activity)
-            .where(
-                Activity.user_id == current_user.id,
-                Activity.canonical_route_id == route_a.id,
-            )
-            .order_by(Activity.start_date.desc())
-            .limit(1)
+    # Get latest activity notes for route_a to show to user
+    act_stmt = (
+        select(Activity)
+        .where(
+            Activity.user_id == current_user.id,
+            Activity.canonical_route_id == route_a.id,
         )
-        latest_act = session.exec(act_stmt).first()
+        .order_by(Activity.start_date.desc())
+        .limit(1)
+    )
+    latest_act = session.exec(act_stmt).first()
 
+    if not ranked_results:
         return {
             "status": "FIRST_HIKE",
             "route_a": {
@@ -238,6 +304,7 @@ def get_next_pair(
                 "strava_notes": latest_act.notes if latest_act else None,
             },
         }
+
 
     # Get rating for Hike A to use as base for match quality
     rating_a = session.get(UserRouteRating, (current_user.id, fixed_route_id))
@@ -291,6 +358,20 @@ def get_next_pair(
     )
 
 
+def sync_global_route_rating(route_id: int, session: Session):
+    """Calculates and persists the global average for a route to the CanonicalRoute table."""
+    avg_stmt = select(func.avg(UserRouteRating.rating_score)).where(
+        UserRouteRating.canonical_route_id == route_id
+    )
+    avg_score = session.exec(avg_stmt).one()
+    if avg_score is not None:
+        route = session.get(CanonicalRoute, route_id)
+        if route:
+            route.rating_score = avg_score
+            session.add(route)
+            session.commit()
+
+
 @router.post("/initialize-with-bucket")
 def initialize_with_bucket(
     route_id: int,
@@ -329,6 +410,10 @@ def initialize_with_bucket(
     )
     session.add(rating)
     session.commit()
+    
+    # Update Global Average
+    sync_global_route_rating(route_id, session)
+    
     return {"status": "success", "score": prior["score"]}
 
 
@@ -381,12 +466,17 @@ def post_vote(
     session.add(loser_rating)
     session.commit()
 
+    # Update Global Averages
+    sync_global_route_rating(winner_id, session)
+    sync_global_route_rating(loser_id, session)
+
     return {
         "status": "success",
         "winner_score": round(winner_rating.rating_score, 2),
         "loser_score": round(loser_rating.rating_score, 2),
         "winner_sigma": round(winner_rating.rating_sigma, 3),
     }
+
 
 
 @router.get("/friends-leaderboard")
@@ -448,6 +538,15 @@ def get_route_detail(
     if not route:
         raise HTTPException(status_code=404, detail="Route not found")
 
+    # Calibration Check: Does current user see scores?
+    show_scores = False
+    if current_user:
+        ranked_count_stmt = select(func.count(UserRouteRating.canonical_route_id)).where(
+            UserRouteRating.user_id == current_user.id
+        )
+        ranked_count = session.exec(ranked_count_stmt).one()
+        show_scores = ranked_count >= 5
+
     # Personal Rating
     personal = None
     if current_user:
@@ -494,7 +593,7 @@ def get_route_detail(
             "user": name,
             "text": rating.public_comment,
             "date": rating.last_ranked_at,
-            "rating": round(rating.rating_score, 2),
+            "rating": round(rating.rating_score, 2) if show_scores else None,
         }
         for rating, name in session.exec(friend_reviews).all()
     ]
@@ -518,16 +617,26 @@ def get_route_detail(
             "user": name,
             "text": rating.public_comment,
             "date": rating.last_ranked_at,
-            "rating": round(rating.rating_score, 2),
+            "rating": round(rating.rating_score, 2) if show_scores else None,
         }
         for rating, name in session.exec(global_reviews_stmt).all()
     ]
 
+    # Global Rating Average
+    global_stmt = select(func.avg(UserRouteRating.rating_score)).where(
+        UserRouteRating.canonical_route_id == route_id
+    )
+    global_avg = session.exec(global_stmt).one() or 5.0
+
     return {
         **route.model_dump(exclude={"geometry"}),
-        "personal_rating": round(personal.rating_score, 2) if personal else None,
-        "circle_avg": round(circle_avg, 2) if circle_avg else None,
+        "personal_rating": round(personal.rating_score, 2) if personal and show_scores else None,
+        "circle_avg": round(circle_avg, 2) if circle_avg and show_scores else None,
         "circle_count": circle_count,
-        "global_rating": round(route.rating_score, 2),
+        "global_rating": round(global_avg, 2) if show_scores else None,
         "reviews": {"friends": friends_list, "global": global_list},
+        "show_scores": show_scores,
     }
+
+
+

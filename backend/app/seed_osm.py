@@ -2,9 +2,7 @@ import argparse
 import logging
 from app.core.constants import PARKS, DEFAULT_SEED_BBOX
 from app.services.osm import seed_canonical_routes
-
-logging.basicConfig(level=logging.INFO)
-
+from app.enrich_routes import enrich
 
 logging.basicConfig(level=logging.INFO)
 
@@ -39,6 +37,11 @@ def main():
     count = seed_canonical_routes(bbox)
     print(f"Done! Seeded {count} routes.")
 
+    print("Starting automated enrichment (Wikipedia/Wikimedia)...")
+    enrich()
+    print("All tasks complete.")
+
 
 if __name__ == "__main__":
     main()
+

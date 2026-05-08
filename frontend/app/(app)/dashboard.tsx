@@ -66,9 +66,11 @@ export default function Dashboard() {
         }
       );
       const data = await response.json();
-      if (Array.isArray(data)) {
-        setActivities(data);
+      if (data && data.activities) {
+        setActivities(data.activities);
+        setShowScores(data.show_scores);
       }
+
     } catch (err) {
       console.error("Failed to fetch feed:", err);
     } finally {
@@ -339,7 +341,7 @@ export default function Dashboard() {
             {isStaging
               ? '--'
               : (!isRankView)
-                ? (item.global_rating || 0).toFixed(2)
+                ? (item.global_rating !== null ? (item.global_rating || 0).toFixed(2) : '--')
                 : (item.is_ranked && showScores)
                   ? (item.personal_score || 0).toFixed(2)
                   : '--'}

@@ -66,9 +66,14 @@ def enrich():
                     # Try with "Trail" appended if not found
                     summary = fetch_wikipedia_summary(f"{route.name} Trail")
 
+                if not summary and " Trail" in route.name:
+                    # Try stripping " Trail" (e.g. "Half Dome Trail" -> "Half Dome")
+                    summary = fetch_wikipedia_summary(route.name.replace(" Trail", ""))
+
                 if summary:
                     route.description = summary
                     print(f"  Added description for {route.name}")
+
 
             # 2. Fetch images if missing
             if not route.images or len(route.images) == 0:

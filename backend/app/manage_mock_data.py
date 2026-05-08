@@ -1,4 +1,6 @@
 import argparse
+from typing import Optional
+
 import random
 import uuid
 from datetime import datetime, timedelta
@@ -134,10 +136,18 @@ def detach_mock_data(user_id: uuid.UUID):
         print("Removed mock activities.")
 
 
+def get_user_by_username(username: str) -> Optional[User]:
+    with Session(engine) as session:
+        stmt = select(User).where(User.username == username)
+        return session.exec(stmt).first()
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Manage mock activity data.")
     parser.add_argument("--attach", type=str, help="User ID to attach mock data to")
     parser.add_argument("--detach", type=str, help="User ID to detach mock data from")
+    parser.add_argument("--attach-user", type=str, help="Username to attach mock data to")
+    parser.add_argument("--detach-user", type=str, help="Username to detach mock data from")
 
     args = parser.parse_args()
 
@@ -145,5 +155,18 @@ if __name__ == "__main__":
         attach_mock_data(uuid.UUID(args.attach))
     elif args.detach:
         detach_mock_data(uuid.UUID(args.detach))
+    elif args.attach_user:
+        user = get_user_by_username(args.attach_user)
+        if user:
+            attach_mock_data(user.id)
+        else:
+            print(f"Error: User with username '{args.attach_user}' not found.")
+    elif args.detach_user:
+        user = get_user_by_username(args.detach_user)
+        if user:
+            detach_mock_data(user.id)
+        else:
+            print(f"Error: User with username '{args.detach_user}' not found.")
     else:
         parser.print_help()
+

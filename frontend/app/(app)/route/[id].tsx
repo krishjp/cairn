@@ -142,18 +142,25 @@ export default function RouteDetailScreen() {
         {/* Rating Tiers */}
         <View style={styles.ratingGrid}>
           <View style={styles.ratingBox}>
-            <Text style={styles.ratingValue}>{route.personal_rating ? route.personal_rating.toFixed(2) : '--'}</Text>
+            <Text style={styles.ratingValue}>
+              {route.show_scores ? (route.personal_rating ? route.personal_rating.toFixed(2) : '--') : '--'}
+            </Text>
             <Text style={styles.ratingLabel}>Personal</Text>
           </View>
           <View style={styles.ratingBox}>
-            <Text style={styles.ratingValue}>{route.circle_avg ? route.circle_avg.toFixed(2) : '--'}</Text>
+            <Text style={styles.ratingValue}>
+              {route.show_scores ? (route.circle_avg ? route.circle_avg.toFixed(2) : '--') : '--'}
+            </Text>
             <Text style={styles.ratingLabel}>Circle</Text>
           </View>
           <View style={styles.ratingBox}>
-            <Text style={styles.ratingValue}>{route.global_rating ? route.global_rating.toFixed(2) : '--'}</Text>
+            <Text style={styles.ratingValue}>
+              {route.show_scores ? (route.global_rating ? route.global_rating.toFixed(2) : '--') : '--'}
+            </Text>
             <Text style={styles.ratingLabel}>Global</Text>
           </View>
         </View>
+
 
         {/* Description */}
         <View style={styles.section}>
@@ -191,13 +198,14 @@ export default function RouteDetailScreen() {
                     <Text style={styles.reviewUser}>{review.user}</Text>
                     <Text style={styles.reviewDate}>{new Date(review.date).toLocaleDateString()}</Text>
                   </View>
-                  {review.rating && (
+                  {review.rating && route.show_scores && (
                     <View style={styles.reviewRatingBadge}>
                       <Text style={styles.reviewRatingText}>{review.rating.toFixed(2)}</Text>
                     </View>
                   )}
                 </View>
                 <Text style={styles.reviewText}>"{review.text}"</Text>
+
               </View>
             ))
           ) : (

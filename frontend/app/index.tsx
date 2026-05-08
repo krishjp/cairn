@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { StyleSheet, Text, View, TouchableOpacity, ScrollView, Animated, Dimensions, SafeAreaView, TextInput } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, ScrollView, Animated, Dimensions, SafeAreaView, TextInput, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
 import { Colors } from '../constants/Colors';
 import { CairnLogo } from '../components/CairnLogo';
@@ -15,6 +15,8 @@ export default function Home() {
   const { signIn, user, isLoading } = useAuth();
   const fadeAnim = useRef(new Animated.Value(1)).current;
   const contentFadeAnim = useRef(new Animated.Value(0)).current;
+  const [trendingRoutes, setTrendingRoutes] = useState<any[]>([]);
+  const [isTrendingLoading, setIsTrendingLoading] = useState(true);
 
   const segments = require('expo-router').useSegments();
 
@@ -46,6 +48,28 @@ export default function Home() {
 
     return () => clearTimeout(timer);
   }, []);
+
+  useEffect(() => {
+    fetchTrending();
+  }, []);
+
+  const fetchTrending = async () => {
+    try {
+      const response = await fetch(
+        `${process.env.EXPO_PUBLIC_API_URL}/api/v1/ranking/trending?limit=3`,
+        { headers: { 'ngrok-skip-browser-warning': 'true' } }
+      );
+      const data = await response.json();
+      if (Array.isArray(data)) {
+        setTrendingRoutes(data);
+      }
+    } catch (err) {
+      console.error("Failed to fetch trending:", err);
+    } finally {
+      setIsTrendingLoading(false);
+    }
+  };
+
 
   if (showSplash) {
     return (
@@ -112,10 +136,22 @@ export default function Home() {
             </View>
 
             <View style={styles.previewList}>
-              <PreviewItem rank={1} name="clouds rest" rating={8.42} />
-              <PreviewItem rank={2} name="skyline trail" rating={7.95} />
-              <PreviewItem rank={3} name="angels landing" rating={7.81} />
+              {isTrendingLoading ? (
+                <ActivityIndicator size="small" color={Colors.primary} />
+              ) : trendingRoutes.length > 0 ? (
+                trendingRoutes.map((route, index) => (
+                  <PreviewItem 
+                    key={route.id} 
+                    rank={index + 1} 
+                    name={route.name.toLowerCase()} 
+                    rating={route.global_rating} 
+                  />
+                ))
+              ) : (
+                <Text style={styles.emptyText}>Trails are being ranked...</Text>
+              )}
             </View>
+
           </View>
 
           <View style={styles.footer}>

@@ -123,6 +123,12 @@ docker compose up -d
 docker compose exec backend alembic upgrade head
 ```
 
+> [!TIP]
+> If you've just pulled changes that updated `backend/requirements.txt`, you should rebuild your backend image to install new dependencies:
+> ```bash
+> docker compose up -d --build
+> ```
+
 ### 3. Database Migrations (Alembic)
 Cairn uses Alembic for database migrations, providing a workflow similar to Django:
 
@@ -147,12 +153,22 @@ Cairn uses Alembic for database migrations, providing a workflow similar to Djan
 
 *   **Mock Data Management:** Populate your feed with test activities from Yosemite (Mist Trail, etc.):
     ```bash
-    # Attach mock hikes to a specific user
-    docker compose exec backend python -m app.manage_mock_data --attach <YOUR_USER_ID>
+    # Attach mock hikes to a specific username
+    docker compose exec backend python -m app.manage_mock_data --attach-user <USERNAME>
     
-    # Remove mock hikes
-    docker compose exec backend python -m app.manage_mock_data --detach <YOUR_USER_ID>
+    # Or via User ID
+    docker compose exec backend python -m app.manage_mock_data --attach <YOUR_USER_ID>
     ```
+
+*   **User Management:** Promote or demote users to admin status:
+    ```bash
+    # Promote a user to admin
+    docker compose exec backend python -m app.manage_users --username <USERNAME> --admin
+
+    # Demote a user from admin
+    docker compose exec backend python -m app.manage_users --username <USERNAME> --no-admin
+    ```
+
 
 ### 5. Frontend Setup (Mobile & Web)
 The app is built with Expo and can be run on iOS, Android, or Web.
@@ -166,14 +182,17 @@ npx expo start  # Scan QR code with Expo Go on your phone
 ```
 
 ### 3. Seed Trail Data
-Populate the database with trails from specific regions:
+Populate the database with trails from specific regions. This command now automatically triggers automated enrichment (descriptions from Wikipedia and imagery from Wikimedia Commons):
 
 ```bash
-# Trigger OSM seeding and automated Wikipedia/Wikimedia enrichment
-# bbox format: "lat_min,lon_min,lat_max,lon_max"
-curl -X POST "http://localhost:8000/api/v1/admin/seed-osm?bbox=37.7,-119.7,37.8,-119.5" \
-     -H "Authorization: Bearer <ADMIN_TOKEN>"
+# Seed and enrich a park (e.g., yosemite)
+docker compose exec backend python -m app.seed_osm --park yosemite
+
+# Or seed a custom bounding box
+docker compose exec backend python -m app.seed_osm --bbox "lat_min,lon_min,lat_max,lon_max"
 ```
+
+
 
 ## Development and Testing
 
